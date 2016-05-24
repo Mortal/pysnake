@@ -81,9 +81,9 @@ def main(stdscr):
         move(pos)
         stdscr.refresh()
 
-    async def get_directions():
+    async def get_directions(it):
         nonlocal prev_dir, next_dir
-        async for c in CursesCharacters():
+        async for c in it:
             if c == curses.KEY_DOWN and prev_dir != UP:
                 next_dir = 0+1j
             elif c == curses.KEY_RIGHT and prev_dir != LEFT:
@@ -132,7 +132,7 @@ def main(stdscr):
             await asyncio.sleep(0.1)
 
     loop = asyncio.get_event_loop()
-    asyncio.ensure_future(get_directions())
+    asyncio.ensure_future(get_directions(CursesCharacters()))
     msg = loop.run_until_complete(play())
 
     raise SystemExit('\n'.join(
