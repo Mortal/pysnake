@@ -112,10 +112,7 @@ def main(stdscr):
                 self.tail_index = 0
 
         def on_eat_food(self):
-            self.tail[:] = (
-                self.tail[:self.tail_index] +
-                [self.tail[self.tail_index]] +
-                self.tail[self.tail_index:])
+            self.tail.insert(self.tail_index, self.tail[self.tail_index])
 
     the_snake = Snake()
 
