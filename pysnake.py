@@ -1,5 +1,7 @@
+import sys
 import curses
 import random
+import asyncio
 import functools
 
 
@@ -23,6 +25,29 @@ INITIAL_LENGTH = 6
 
 
 def main(stdscr):
+    async def getch():
+        c = stdscr.getch()
+        if c != -1:
+            return c
+
+        f = asyncio.Future()
+
+        def on_readable():
+            f.set_result(stdscr.getch())
+
+        loop = asyncio.get_event_loop()
+        loop.add_reader(sys.stdin, on_readable)
+        c = await f
+        loop.remove_reader(sys.stdin)
+        return c
+
+    class CursesCharacters:
+        async def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            return await getch()
+
     addch = complex_wrap(stdscr.addch)
     move = complex_wrap(stdscr.move)
     inch = complex_wrap(stdscr.inch)
@@ -36,22 +61,9 @@ def main(stdscr):
     prev_dir = RIGHT
     next_dir = RIGHT
 
-    width = 30
-    height = 20
-    snake = [pos] * INITIAL_LENGTH
-
-    addch(5+5j, FOOD)
-
-    msg = None
-
-    i = 0
-    steps = 0
-    while True:
-        addch(snake[i], ' ')
-        while True:
-            c = stdscr.getch()
-            if c == -1:
-                break
+    async def get_directions():
+        nonlocal prev_dir, next_dir
+        async for c in CursesCharacters():
             if c == curses.KEY_DOWN and prev_dir != UP:
                 next_dir = 0+1j
             elif c == curses.KEY_RIGHT and prev_dir != LEFT:
@@ -60,36 +72,51 @@ def main(stdscr):
                 next_dir = 0-1j
             elif c == curses.KEY_LEFT and prev_dir != RIGHT:
                 next_dir = -1+0j
-        pos += next_dir
-        prev_dir = next_dir
-        pos = complex(pos.real % width, pos.imag % height)
-        cur_tile = gettile(pos)
-        add_new = False
-        if cur_tile == FOOD:
-            snake = snake[:i] + [snake[i]] + snake[i:]
-            add_new = True
-        elif cur_tile != ' ':
-            msg = (
-                "Boom! You hit %s" %
-                'yourself' if cur_tile == BODY else repr(cur_tile))
-            break
-        snake[i] = pos
-        addch(pos, BODY)
 
-        if add_new:
-            o_pos = pos
-            while gettile(o_pos) != ' ':
-                o_pos = complex(random.randint(0, width-1),
-                                random.randint(0, height-1))
-            addch(o_pos, FOOD)
-        move(pos)
-        stdscr.refresh()
-        curses.napms(100)
+    width = 30
+    height = 20
+    snake = [pos] * INITIAL_LENGTH
 
-        i += 1
-        steps += 1
-        if i == len(snake):
-            i = 0
+    addch(5+5j, FOOD)
+
+    i = 0
+    steps = 0
+
+    async def play():
+        nonlocal steps, i, next_dir, prev_dir, pos
+        while True:
+            addch(snake[i], ' ')
+            pos += next_dir
+            pos = complex(pos.real % width, pos.imag % height)
+            prev_dir = next_dir
+            cur_tile = gettile(pos)
+            add_new = False
+            if cur_tile == FOOD:
+                snake[:] = snake[:i] + [snake[i]] + snake[i:]
+                add_new = True
+            elif cur_tile != ' ':
+                return (
+                    "Boom! You hit %s" %
+                    'yourself' if cur_tile == BODY else repr(cur_tile))
+            snake[i] = pos
+            addch(pos, BODY)
+            if add_new:
+                o_pos = pos
+                while gettile(o_pos) != ' ':
+                    o_pos = complex(random.randint(0, width-1),
+                                    random.randint(0, height-1))
+                addch(o_pos, FOOD)
+            move(pos)
+            stdscr.refresh()
+            i += 1
+            steps += 1
+            if i == len(snake):
+                i = 0
+            await asyncio.sleep(0.1)
+
+    loop = asyncio.get_event_loop()
+    asyncio.ensure_future(get_directions())
+    msg = loop.run_until_complete(play())
 
     raise SystemExit('\n'.join(
         [msg,
