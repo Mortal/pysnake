@@ -95,8 +95,7 @@ def main(stdscr):
         [msg,
          "You ate %s foods" % (len(snake) - INITIAL_LENGTH),
          "You moved %s tiles" % steps,
-         "Good job!!",
-        ]))
+         "Good job!!"]))
 
 
 def wrapper(func):
