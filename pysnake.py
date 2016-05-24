@@ -93,7 +93,16 @@ def main(stdscr):
     height = 20
     snake = [pos] * INITIAL_LENGTH
 
-    addch(5+5j, FOOD)
+    async def food_loop(pos):
+        while True:
+            while gettile(pos) != ' ':
+                pos = random_position()
+            addch(pos, FOOD)
+            await wait_for_player(pos)
+            snake[:] = snake[:i] + [snake[i]] + snake[i:]
+            pos = random_position()
+
+    asyncio.ensure_future(food_loop(5+5j))
 
     i = 0
     steps = 0
@@ -106,19 +115,10 @@ def main(stdscr):
             pos = complex(pos.real % width, pos.imag % height)
             prev_dir = next_dir
             cur_tile = gettile(pos)
-            add_new = False
-            if cur_tile == FOOD:
-                snake[:] = snake[:i] + [snake[i]] + snake[i:]
-                add_new = True
-            elif cur_tile == BODY:
+            if cur_tile == BODY:
                 return "Boom! You hit yourself"
             snake[i] = pos
             put_player(pos)
-            if add_new:
-                o_pos = pos
-                while gettile(o_pos) != ' ':
-                    o_pos = random_position()
-                addch(o_pos, FOOD)
             move(pos)
             stdscr.refresh()
             i += 1
