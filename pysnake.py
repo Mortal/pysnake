@@ -5,6 +5,10 @@ import asyncio
 import functools
 
 
+class GameOver(Exception):
+    pass
+
+
 def complex_wrap(fn):
     @functools.wraps(fn)
     def wrapped(pos, *args):
@@ -133,7 +137,10 @@ def main(stdscr):
 
     loop = asyncio.get_event_loop()
     asyncio.ensure_future(get_directions(CursesCharacters()))
-    msg = loop.run_until_complete(play())
+    try:
+        msg = loop.run_until_complete(play())
+    except GameOver as exn:
+        msg = exn.args[0]
 
     raise SystemExit('\n'.join(
         [msg,
