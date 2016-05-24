@@ -57,8 +57,17 @@ def main(stdscr):
 
     stdscr.nodelay(1)
 
+    player_waiters = {}
+
     def put_player(pos):
         addch(pos, BODY)
+        for f in player_waiters.pop(pos, ()):
+            f.set_result(None)
+
+    async def wait_for_player(pos):
+        f = asyncio.Future()
+        player_waiters.setdefault(pos, []).append(f)
+        await f
 
     def random_position():
         return complex(random.randint(0, width-1),
