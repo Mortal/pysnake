@@ -63,43 +63,68 @@ def main(stdscr):
 
     player_waiters = {}
 
-    def put_player(pos):
+    def put_player(snake, pos):
         addch(pos, BODY)
         for f in player_waiters.pop(pos, ()):
-            f.set_result(None)
+            f.set_result(snake)
 
     async def wait_for_player(pos):
         f = asyncio.Future()
         player_waiters.setdefault(pos, []).append(f)
-        await f
+        return await f
 
     def random_position():
         return complex(random.randint(0, width-1),
                        random.randint(0, height-1))
 
-    pos = 0+0j
-    prev_dir = RIGHT
-    next_dir = RIGHT
+    class Snake:
+        def __init__(self):
+            self.pos = 0+0j
+            self.prev_dir = self.next_dir = RIGHT
+            self.steps = 0
+            self.tail = [self.pos] * INITIAL_LENGTH
+            self.tail_index = 0
+
+        async def get_directions(self, it):
+            async for c in it:
+                if c == curses.KEY_DOWN and self.prev_dir != UP:
+                    self.next_dir = 0+1j
+                elif c == curses.KEY_RIGHT and self.prev_dir != LEFT:
+                    self.next_dir = 1+0j
+                elif c == curses.KEY_UP and self.prev_dir != DOWN:
+                    self.next_dir = 0-1j
+                elif c == curses.KEY_LEFT and self.prev_dir != RIGHT:
+                    self.next_dir = -1+0j
+
+        def step(self):
+            addch(self.tail[self.tail_index], ' ')
+            self.pos += self.next_dir
+            self.pos = complex(self.pos.real % width, self.pos.imag % height)
+            self.prev_dir = self.next_dir
+            cur_tile = gettile(self.pos)
+            if cur_tile == BODY:
+                raise GameOver("Boom! You hit yourself")
+            self.tail[self.tail_index] = self.pos
+            put_player(self, self.pos)
+            self.tail_index += 1
+            self.steps += 1
+            if self.tail_index == len(self.tail):
+                self.tail_index = 0
+
+        def on_eat_food(self):
+            self.tail[:] = (
+                self.tail[:self.tail_index] +
+                [self.tail[self.tail_index]] +
+                self.tail[self.tail_index:])
+
+    the_snake = Snake()
 
     def refresh():
-        move(pos)
+        move(the_snake.pos)
         stdscr.refresh()
-
-    async def get_directions(it):
-        nonlocal prev_dir, next_dir
-        async for c in it:
-            if c == curses.KEY_DOWN and prev_dir != UP:
-                next_dir = 0+1j
-            elif c == curses.KEY_RIGHT and prev_dir != LEFT:
-                next_dir = 1+0j
-            elif c == curses.KEY_UP and prev_dir != DOWN:
-                next_dir = 0-1j
-            elif c == curses.KEY_LEFT and prev_dir != RIGHT:
-                next_dir = -1+0j
 
     width = 30
     height = 20
-    snake = [pos] * INITIAL_LENGTH
 
     async def food_loop(pos):
         while True:
@@ -107,45 +132,30 @@ def main(stdscr):
                 pos = random_position()
             addch(pos, FOOD)
             refresh()
-            await wait_for_player(pos)
-            snake[:] = snake[:i] + [snake[i]] + snake[i:]
+            p = await wait_for_player(pos)
+            p.on_eat_food()
             pos = random_position()
 
     asyncio.ensure_future(food_loop(5+5j))
 
-    i = 0
-    steps = 0
-
-    async def play():
-        nonlocal steps, i, next_dir, prev_dir, pos
+    async def play(snakes):
         while True:
-            addch(snake[i], ' ')
-            pos += next_dir
-            pos = complex(pos.real % width, pos.imag % height)
-            prev_dir = next_dir
-            cur_tile = gettile(pos)
-            if cur_tile == BODY:
-                return "Boom! You hit yourself"
-            snake[i] = pos
-            put_player(pos)
+            for snake in snakes:
+                snake.step()
             refresh()
-            i += 1
-            steps += 1
-            if i == len(snake):
-                i = 0
             await asyncio.sleep(0.1)
 
     loop = asyncio.get_event_loop()
-    asyncio.ensure_future(get_directions(CursesCharacters()))
+    asyncio.ensure_future(the_snake.get_directions(CursesCharacters()))
     try:
-        msg = loop.run_until_complete(play())
+        msg = loop.run_until_complete(play([the_snake]))
     except GameOver as exn:
         msg = exn.args[0]
 
     raise SystemExit('\n'.join(
         [msg,
-         "You ate %s foods" % (len(snake) - INITIAL_LENGTH),
-         "You moved %s tiles" % steps,
+         "You ate %s foods" % (len(the_snake.tail) - INITIAL_LENGTH),
+         "You moved %s tiles" % the_snake.steps,
          "Good job!!"]))
 
 
