@@ -77,6 +77,10 @@ def main(stdscr):
     prev_dir = RIGHT
     next_dir = RIGHT
 
+    def refresh():
+        move(pos)
+        stdscr.refresh()
+
     async def get_directions():
         nonlocal prev_dir, next_dir
         async for c in CursesCharacters():
@@ -119,8 +123,7 @@ def main(stdscr):
                 return "Boom! You hit yourself"
             snake[i] = pos
             put_player(pos)
-            move(pos)
-            stdscr.refresh()
+            refresh()
             i += 1
             steps += 1
             if i == len(snake):
