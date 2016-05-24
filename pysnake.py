@@ -33,7 +33,8 @@ def main(stdscr):
     stdscr.nodelay(1)
 
     pos = 0+0j
-    d = RIGHT
+    prev_dir = RIGHT
+    next_dir = RIGHT
 
     width = 30
     height = 20
@@ -47,20 +48,20 @@ def main(stdscr):
     steps = 0
     while True:
         addch(snake[i], ' ')
-        d2 = d
         while True:
             c = stdscr.getch()
             if c == -1:
                 break
-            if c == curses.KEY_DOWN and d2 != UP:
-                d = 0+1j
-            elif c == curses.KEY_RIGHT and d2 != LEFT:
-                d = 1+0j
-            elif c == curses.KEY_UP and d2 != DOWN:
-                d = 0-1j
-            elif c == curses.KEY_LEFT and d2 != RIGHT:
-                d = -1+0j
-        pos += d
+            if c == curses.KEY_DOWN and prev_dir != UP:
+                next_dir = 0+1j
+            elif c == curses.KEY_RIGHT and prev_dir != LEFT:
+                next_dir = 1+0j
+            elif c == curses.KEY_UP and prev_dir != DOWN:
+                next_dir = 0-1j
+            elif c == curses.KEY_LEFT and prev_dir != RIGHT:
+                next_dir = -1+0j
+        pos += next_dir
+        prev_dir = next_dir
         pos = complex(pos.real % width, pos.imag % height)
         cur_tile = gettile(pos)
         add_new = False
