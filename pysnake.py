@@ -57,6 +57,9 @@ def main(stdscr):
 
     stdscr.nodelay(1)
 
+    def put_player(pos):
+        addch(pos, BODY)
+
     def random_position():
         return complex(random.randint(0, width-1),
                        random.randint(0, height-1))
@@ -101,7 +104,7 @@ def main(stdscr):
             elif cur_tile == BODY:
                 return "Boom! You hit yourself"
             snake[i] = pos
-            addch(pos, BODY)
+            put_player(pos)
             if add_new:
                 o_pos = pos
                 while gettile(o_pos) != ' ':
