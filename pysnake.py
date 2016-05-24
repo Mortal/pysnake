@@ -102,6 +102,7 @@ def main(stdscr):
             while gettile(pos) != ' ':
                 pos = random_position()
             addch(pos, FOOD)
+            refresh()
             await wait_for_player(pos)
             snake[:] = snake[:i] + [snake[i]] + snake[i:]
             pos = random_position()
