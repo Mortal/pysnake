@@ -57,6 +57,10 @@ def main(stdscr):
 
     stdscr.nodelay(1)
 
+    def random_position():
+        return complex(random.randint(0, width-1),
+                       random.randint(0, height-1))
+
     pos = 0+0j
     prev_dir = RIGHT
     next_dir = RIGHT
@@ -103,8 +107,7 @@ def main(stdscr):
             if add_new:
                 o_pos = pos
                 while gettile(o_pos) != ' ':
-                    o_pos = complex(random.randint(0, width-1),
-                                    random.randint(0, height-1))
+                    o_pos = random_position()
                 addch(o_pos, FOOD)
             move(pos)
             stdscr.refresh()
