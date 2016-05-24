@@ -98,10 +98,8 @@ def main(stdscr):
             if cur_tile == FOOD:
                 snake[:] = snake[:i] + [snake[i]] + snake[i:]
                 add_new = True
-            elif cur_tile != ' ':
-                return (
-                    "Boom! You hit %s" %
-                    'yourself' if cur_tile == BODY else repr(cur_tile))
+            elif cur_tile == BODY:
+                return "Boom! You hit yourself"
             snake[i] = pos
             addch(pos, BODY)
             if add_new:
