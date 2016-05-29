@@ -93,14 +93,15 @@ def main(stdscr):
 
         async def get_directions(self, it):
             async for c in it:
-                if c == curses.KEY_DOWN and self.prev_dir != UP:
-                    self.next_dir = 0+1j
-                elif c == curses.KEY_RIGHT and self.prev_dir != LEFT:
-                    self.next_dir = 1+0j
-                elif c == curses.KEY_UP and self.prev_dir != DOWN:
-                    self.next_dir = 0-1j
-                elif c == curses.KEY_LEFT and self.prev_dir != RIGHT:
-                    self.next_dir = -1+0j
+                if c == curses.KEY_DOWN:
+                    self.next_dir += 0+1j
+                elif c == curses.KEY_RIGHT:
+                    self.next_dir += 1+0j
+                elif c == curses.KEY_UP:
+                    self.next_dir += 0-1j
+                elif c == curses.KEY_LEFT:
+                    self.next_dir += -1+0j
+                refresh()
 
         def step(self):
             addch(self.tail[self.tail_index], ' ')
@@ -125,7 +126,9 @@ def main(stdscr):
     the_snake = Snake()
 
     def refresh():
-        move(the_snake.pos)
+        p = the_snake.pos + the_snake.next_dir
+        p = complex(p.real % width, p.imag % height)
+        move(p)
         stdscr.refresh()
 
     width = 30
@@ -141,13 +144,12 @@ def main(stdscr):
             p.on_eat_food()
             pos = random_position()
 
-
     async def play(snakes):
         while True:
             for snake in snakes:
                 snake.step()
             refresh()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(1)
 
     loop = asyncio.get_event_loop()
     tasks = [
