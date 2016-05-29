@@ -133,7 +133,6 @@ def main(stdscr):
             p.on_eat_food()
             pos = random_position()
 
-    asyncio.ensure_future(food_loop(5+5j))
 
     async def play(snakes):
         while True:
@@ -143,14 +142,22 @@ def main(stdscr):
             await asyncio.sleep(0.1)
 
     loop = asyncio.get_event_loop()
-    asyncio.ensure_future(the_snake.get_directions(CursesCharacters()))
+    tasks = [
+        asyncio.ensure_future(food_loop(5+5j)),
+        asyncio.ensure_future(
+            the_snake.get_directions(CursesCharacters())),
+        asyncio.ensure_future(play([the_snake])),
+    ]
     try:
-        msg = loop.run_until_complete(play([the_snake]))
+        done, not_done = loop.run_until_complete(
+            asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION))
+        done_values = [f.result() for f in done]
+        msg = str(done_values)
     except GameOver as exn:
         msg = exn.args[0]
 
     raise SystemExit('\n'.join(
-        [msg,
+        [str(msg),
          "You ate %s foods" % (len(the_snake.tail) - INITIAL_LENGTH),
          "You moved %s tiles" % the_snake.steps,
          "Good job!!"]))
