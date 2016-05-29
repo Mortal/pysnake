@@ -78,9 +78,15 @@ def main(stdscr):
                        random.randint(0, height-1))
 
     class Snake:
-        def __init__(self):
-            self.pos = 0+0j
-            self.prev_dir = self.next_dir = RIGHT
+        def __init__(self, pos=None, dir=None):
+            if pos is None:
+                self.pos = 0+0j
+            else:
+                self.pos = pos
+            if dir is None:
+                self.prev_dir = self.next_dir = RIGHT
+            else:
+                self.prev_dir = self.next_dir = dir
             self.steps = 0
             self.tail = [self.pos] * INITIAL_LENGTH
             self.tail_index = 0
