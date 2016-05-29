@@ -113,6 +113,8 @@ def main(stdscr):
 
         def on_eat_food(self):
             self.tail.insert(self.tail_index, self.tail[self.tail_index])
+            if len(self.tail) == width * height:
+                raise GameOver("You win!")
 
     the_snake = Snake()
 
