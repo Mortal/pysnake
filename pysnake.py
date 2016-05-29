@@ -105,7 +105,7 @@ def main(stdscr):
         def step(self):
             addch(self.tail[self.tail_index], ' ')
             self.pos += self.next_dir
-            self.pos = complex(self.pos.real % width, self.pos.imag % height)
+            self.pos = complex(self.pos.real % width, (self.pos.imag + self.pos.real // width) % height)
             self.prev_dir = self.next_dir
             cur_tile = gettile(self.pos)
             if cur_tile == BODY:
@@ -147,14 +147,15 @@ def main(stdscr):
             for snake in snakes:
                 snake.step()
             refresh()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0)
 
     loop = asyncio.get_event_loop()
+    snakes = [the_snake]
     tasks = [
         asyncio.ensure_future(food_loop(5+5j)),
         asyncio.ensure_future(
             the_snake.get_directions(CursesCharacters())),
-        asyncio.ensure_future(play([the_snake])),
+        asyncio.ensure_future(play(snakes)),
     ]
     try:
         done, not_done = loop.run_until_complete(
