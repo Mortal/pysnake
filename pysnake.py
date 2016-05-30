@@ -222,6 +222,8 @@ def main(stdscr):
         msg = str(done_values)
     except GameOver as exn:
         msg = exn.args[0]
+    except KeyboardInterrupt:
+        msg = 'You killed the game!'
 
     raise SystemExit('\n'.join(
         [str(msg),
