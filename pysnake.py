@@ -78,7 +78,7 @@ def main(stdscr):
                        random.randint(0, height-1))
 
     class Snake:
-        def __init__(self, pos=None, dir=None):
+        def __init__(self, pos=None, dir=None, controls=None):
             if pos is None:
                 self.pos = 0+0j
             else:
@@ -90,16 +90,26 @@ def main(stdscr):
             self.steps = 0
             self.tail = [self.pos] * INITIAL_LENGTH
             self.tail_index = 0
+            if controls is None:
+                controls = [curses.KEY_UP,
+                            curses.KEY_LEFT,
+                            curses.KEY_DOWN,
+                            curses.KEY_RIGHT]
+            else:
+                controls = [ord(c) if isinstance(c, str)
+                            else c for c in controls]
+            self.controls = controls
 
         async def get_directions(self, it):
             async for c in it:
-                if c == curses.KEY_DOWN and self.prev_dir != UP:
+                up, left, down, right = self.controls
+                if c == down and self.prev_dir != UP:
                     self.next_dir = 0+1j
-                elif c == curses.KEY_RIGHT and self.prev_dir != LEFT:
+                elif c == right and self.prev_dir != LEFT:
                     self.next_dir = 1+0j
-                elif c == curses.KEY_UP and self.prev_dir != DOWN:
+                elif c == up and self.prev_dir != DOWN:
                     self.next_dir = 0-1j
-                elif c == curses.KEY_LEFT and self.prev_dir != RIGHT:
+                elif c == left and self.prev_dir != RIGHT:
                     self.next_dir = -1+0j
 
         def step(self):
