@@ -30,30 +30,35 @@ FOOD = 'o'
 INITIAL_LENGTH = 6
 
 
-def main(stdscr):
-    async def getch():
-        c = stdscr.getch()
-        if c != -1:
-            return c
-
-        f = asyncio.Future()
-
-        def on_readable():
-            f.set_result(stdscr.getch())
-
-        loop = asyncio.get_event_loop()
-        loop.add_reader(sys.stdin, on_readable)
-        c = await f
-        loop.remove_reader(sys.stdin)
+async def async_getch(stdscr):
+    c = stdscr.getch()
+    if c != -1:
         return c
 
-    class CursesCharacters:
-        async def __aiter__(self):
-            return self
+    f = asyncio.Future()
 
-        async def __anext__(self):
-            return await getch()
+    def on_readable():
+        f.set_result(stdscr.getch())
 
+    loop = asyncio.get_event_loop()
+    loop.add_reader(sys.stdin, on_readable)
+    c = await f
+    loop.remove_reader(sys.stdin)
+    return c
+
+
+class CursesCharacters:
+    def __init__(self, stdscr):
+        self.stdscr = stdscr
+
+    async def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        return await async_getch(self.stdscr)
+
+
+def main(stdscr):
     addch = complex_wrap(stdscr.addch)
     move = complex_wrap(stdscr.move)
     inch = complex_wrap(stdscr.inch)
@@ -164,7 +169,7 @@ def main(stdscr):
     loop = asyncio.get_event_loop()
     snakes = [the_snake, Snake(pos=0+10j, controls='wasd')]
     tasks = [
-        asyncio.ensure_future(input.consume(CursesCharacters())),
+        asyncio.ensure_future(input.consume(CursesCharacters(stdscr))),
         asyncio.ensure_future(food_loop(5+5j)),
         asyncio.ensure_future(play(snakes)),
     ]
