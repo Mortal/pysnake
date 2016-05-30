@@ -3,7 +3,7 @@ import random
 import asyncio
 
 from asyncsnake import LockstepConsumers
-from cursessnake import CursesCharacters, complex_wrap
+from cursessnake import CursesCharacters, complex_wrap, wrapper
 
 
 class GameOver(Exception):
@@ -155,37 +155,6 @@ def main(stdscr):
          "You ate %s foods" % (len(the_snake.tail) - INITIAL_LENGTH),
          "You moved %s tiles" % the_snake.steps,
          "Good job!!"]))
-
-
-def wrapper(func):
-    stdscr = curses.initscr()
-    try:
-        # Turn off echoing of keys, and enter cbreak mode,
-        # where no buffering is performed on keyboard input
-        curses.noecho()
-        curses.cbreak()
-
-        # In keypad mode, escape sequences for special keys
-        # (like the cursor keys) will be interpreted and
-        # a special value like curses.KEY_LEFT will be returned
-        stdscr.keypad(1)
-
-        # Start color, too.  Harmless if the terminal doesn't have
-        # color; user can test with has_color() later on.  The try/catch
-        # works around a minor bit of over-conscientiousness in the curses
-        # module -- the error return from C start_color() is ignorable.
-        # try:
-        #     curses.start_color()
-        # except:
-        #     pass
-
-        return func(stdscr)
-    finally:
-        # Set everything back to normal
-        stdscr.keypad(0)
-        curses.echo()
-        curses.nocbreak()
-        curses.endwin()
 
 
 if __name__ == "__main__":
