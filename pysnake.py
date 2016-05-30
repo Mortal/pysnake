@@ -1,22 +1,13 @@
 import curses
 import random
 import asyncio
-import functools
 
 from asyncsnake import LockstepConsumers
-from cursessnake import CursesCharacters
+from cursessnake import CursesCharacters, complex_wrap
 
 
 class GameOver(Exception):
     pass
-
-
-def complex_wrap(fn):
-    @functools.wraps(fn)
-    def wrapped(pos, *args):
-        return fn(int(pos.imag), int(pos.real), *args)
-
-    return wrapped
 
 
 UP = 0-1j

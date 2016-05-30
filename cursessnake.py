@@ -1,5 +1,14 @@
 import sys
 import asyncio
+import functools
+
+
+def complex_wrap(fn):
+    @functools.wraps(fn)
+    def wrapped(pos, *args):
+        return fn(int(pos.imag), int(pos.real), *args)
+
+    return wrapped
 
 
 async def async_getch(stdscr):
