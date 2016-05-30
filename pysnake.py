@@ -208,13 +208,16 @@ def main(stdscr):
 
     input = LockstepConsumers()
     loop = asyncio.get_event_loop()
+    snakes = [the_snake, Snake(pos=0+10j, controls='wasd')]
     tasks = [
         asyncio.ensure_future(input.consume(CursesCharacters())),
         asyncio.ensure_future(food_loop(5+5j)),
-        asyncio.ensure_future(
-            the_snake.get_directions(input.consumer())),
-        asyncio.ensure_future(play([the_snake])),
+        asyncio.ensure_future(play(snakes)),
     ]
+    for s in snakes:
+        tasks.append(
+            asyncio.ensure_future(
+                s.get_directions(input.consumer())))
     try:
         done, not_done = loop.run_until_complete(
             asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION))
