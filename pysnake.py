@@ -149,6 +149,8 @@ def main(stdscr):
     try:
         done, pending = loop.run_until_complete(tasks_wait)
     except:
+        # Exception was raised in run_until_complete, but not in any future --
+        # add dummy future with current exception.
         tasks_wait.cancel()
         pending = tasks
         done = [asyncio.Future()]
@@ -161,7 +163,7 @@ def main(stdscr):
     loop.stop()
     loop.run_forever()
     try:
-        # Handle the original exception.
+        # Handle the original exception or let it bubble up.
         for f in done:
             f.result()
     except GameOver as exn:
