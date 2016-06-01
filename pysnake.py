@@ -50,6 +50,7 @@ def main(stdscr):
 
     class Snake:
         def __init__(self, pos=None, dir=None, controls=None):
+            self.wait = 10
             if pos is None:
                 self.pos = 0+0j
             else:
@@ -123,11 +124,16 @@ def main(stdscr):
             pos = random_position()
 
     async def play(snakes):
+        t = 0
+        n = [0] * len(snakes)
         while True:
-            for snake in snakes:
-                snake.step()
-            refresh()
-            await asyncio.sleep(0.1)
+            i = min(range(len(snakes)), key=lambda i: n[i])
+            if n[i] > t:
+                refresh()
+                await asyncio.sleep(0.01 * (n[i] - t))
+                t = n[i]
+            snakes[i].step()
+            n[i] += snakes[i].wait
 
     input = LockstepConsumers()
     loop = asyncio.get_event_loop()
