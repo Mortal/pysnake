@@ -123,6 +123,29 @@ def main(stdscr):
             p.on_eat_food()
             pos = random_position()
 
+    async def faster_loop():
+        pos = random_position()
+        while True:
+            while gettile(pos) != ' ':
+                pos = random_position()
+            addch(pos, '+')
+            refresh()
+            p = await wait_for_player(pos)
+            if p.wait > 1:
+                p.wait -= 1
+            pos = random_position()
+
+    async def slower_loop():
+        pos = random_position()
+        while True:
+            while gettile(pos) != ' ':
+                pos = random_position()
+            addch(pos, '-')
+            refresh()
+            p = await wait_for_player(pos)
+            p.wait += 1
+            pos = random_position()
+
     async def play(snakes):
         t = 0
         n = [0] * len(snakes)
@@ -141,6 +164,8 @@ def main(stdscr):
     tasks = [
         input.consume(CursesCharacters(stdscr)),
         food_loop(5+5j),
+        faster_loop(),
+        slower_loop(),
         play(snakes),
     ]
     for s in snakes:
