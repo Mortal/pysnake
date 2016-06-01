@@ -21,6 +21,7 @@ class LockstepConsumers:
     async def consume(self, it):
         async for v in it:
             await self.push(v)
+        await self.stop()
 
     def consumer(self):
         self.consumers += 1
@@ -48,3 +49,11 @@ class LockstepConsumers:
         for f in self.futures:
             f.set_result(v)
         self.futures = []
+
+    async def stop(self):
+        while len(self.futures) < self.consumers:
+            await self._wait()
+        for f in self.futures:
+            f.set_exception(StopAsyncIteration())
+        self.futures = []
+        self.stopped = True
