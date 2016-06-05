@@ -1,3 +1,4 @@
+import sys
 import curses
 import random
 import asyncio
@@ -147,6 +148,20 @@ def main(stdscr):
         loop=loop)
     try:
         done, pending = loop.run_until_complete(tasks_wait)
+    except:
+        tasks_wait.cancel()
+        pending = tasks
+        done = [asyncio.Future()]
+        done[0].set_exception(sys.exc_info()[1])
+
+    # Cancel coroutines that are not done.
+    for p in pending:
+        p.cancel()
+    # Wait for cancellations.
+    loop.stop()
+    loop.run_forever()
+    try:
+        # Handle the original exception.
         for f in done:
             f.result()
     except GameOver as exn:
