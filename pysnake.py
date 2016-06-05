@@ -38,10 +38,10 @@ def main(stdscr):
         for f in player_waiters.pop(pos, ()):
             f.set_result(snake)
 
-    async def wait_for_player(pos):
+    def wait_for_player(pos):
         f = asyncio.Future()
         player_waiters.setdefault(pos, []).append(f)
-        return await f
+        return f
 
     def random_position():
         return complex(random.randint(0, width-1),
