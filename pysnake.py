@@ -140,6 +140,8 @@ def main(stdscr):
         tasks.append(
             s.get_directions(input.consumer()))
     tasks = [asyncio.ensure_future(t, loop=loop) for t in tasks]
+
+    # Run coroutines until the first raises an exception.
     try:
         done, not_done = loop.run_until_complete(
             asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION))
