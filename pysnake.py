@@ -132,14 +132,14 @@ def main(stdscr):
     loop = asyncio.get_event_loop()
     snakes = [the_snake, Snake(pos=0+10j, controls='wasd')]
     tasks = [
-        asyncio.ensure_future(input.consume(CursesCharacters(stdscr))),
-        asyncio.ensure_future(food_loop(5+5j)),
-        asyncio.ensure_future(play(snakes)),
+        input.consume(CursesCharacters(stdscr)),
+        food_loop(5+5j),
+        play(snakes),
     ]
     for s in snakes:
         tasks.append(
-            asyncio.ensure_future(
-                s.get_directions(input.consumer())))
+            s.get_directions(input.consumer()))
+    tasks = [asyncio.ensure_future(t, loop=loop) for t in tasks]
     try:
         done, not_done = loop.run_until_complete(
             asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION))
