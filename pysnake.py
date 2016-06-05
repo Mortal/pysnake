@@ -147,12 +147,14 @@ def main(stdscr):
         loop=loop)
     try:
         done, pending = loop.run_until_complete(tasks_wait)
-        done_values = [f.result() for f in done]
-        msg = str(done_values)
+        for f in done:
+            f.result()
     except GameOver as exn:
         msg = exn.args[0]
     except KeyboardInterrupt:
         msg = 'You killed the game!'
+    else:
+        msg = str(done)
     loop.close()
 
     raise SystemExit('\n'.join(
