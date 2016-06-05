@@ -26,11 +26,11 @@ class LockstepConsumers:
         self.consumers += 1
         return LockstepConsumer(self._consume_next)
 
-    async def _consume_next(self):
+    def _consume_next(self):
         f = asyncio.Future()
         self.futures.append(f)
         self._notify()
-        return await f
+        return f
 
     def _notify(self):
         if self._waiter:
