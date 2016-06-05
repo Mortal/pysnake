@@ -142,9 +142,11 @@ def main(stdscr):
     tasks = [asyncio.ensure_future(t, loop=loop) for t in tasks]
 
     # Run coroutines until the first raises an exception.
+    tasks_wait = asyncio.ensure_future(
+        asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION),
+        loop=loop)
     try:
-        done, not_done = loop.run_until_complete(
-            asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION))
+        done, pending = loop.run_until_complete(tasks_wait)
         done_values = [f.result() for f in done]
         msg = str(done_values)
     except GameOver as exn:
