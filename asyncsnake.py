@@ -37,10 +37,10 @@ class LockstepConsumers:
             self._waiter.set_result(None)
             self._waiter = None
 
-    async def _wait(self):
+    def _wait(self):
         f = asyncio.Future()
         self._waiter = f
-        await self._waiter
+        return self._waiter
 
     async def push(self, v):
         while len(self.futures) < self.consumers:
