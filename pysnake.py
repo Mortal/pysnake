@@ -153,6 +153,7 @@ def main(stdscr):
         msg = exn.args[0]
     except KeyboardInterrupt:
         msg = 'You killed the game!'
+    loop.close()
 
     raise SystemExit('\n'.join(
         [str(msg),
