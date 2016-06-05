@@ -8,8 +8,8 @@ class LockstepConsumer:
     async def __aiter__(self):
         return self
 
-    async def __anext__(self):
-        return await self.f()
+    def __anext__(self):
+        return self.f()
 
 
 class LockstepConsumers:
