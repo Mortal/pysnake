@@ -57,3 +57,43 @@ class LockstepConsumers:
             f.set_exception(StopAsyncIteration())
         self.futures = []
         self.stopped = True
+
+
+def run_coroutines(tasks):
+    "Helper function that runs some coroutines and cleans up after exceptions."
+    loop = asyncio.get_event_loop()
+    tasks = [asyncio.ensure_future(t, loop=loop) for t in tasks]
+
+    # Run coroutines until the first raises an exception.
+    tasks_wait = asyncio.ensure_future(
+        asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION),
+        loop=loop)
+    try:
+        done, pending = loop.run_until_complete(tasks_wait)
+    except:
+        tasks_wait.cancel()
+        loop.run_forever()
+        for p in tasks:
+            p.cancel()
+        for p in tasks:
+            try:
+                loop.run_until_complete(p)
+            except asyncio.CancelledError:
+                pass
+        loop.close()
+        raise
+    else:
+        # Cancel coroutines that are not done.
+        for p in pending:
+            p.cancel()
+        # Wait for cancellations.
+        for p in pending:
+            try:
+                loop.run_until_complete(p)
+            except asyncio.CancelledError:
+                pass
+        try:
+            # Handle the original exception or let it bubble up.
+            return [f.result() for f in done]
+        finally:
+            loop.close()

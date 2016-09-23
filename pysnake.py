@@ -3,7 +3,7 @@ import curses
 import random
 import asyncio
 
-from asyncsnake import LockstepConsumers
+from asyncsnake import LockstepConsumers, run_coroutines
 from cursessnake import CursesCharacters, complex_wrap, wrapper
 
 
@@ -159,7 +159,6 @@ def main(stdscr):
             n[i] += snakes[i].wait
 
     input = LockstepConsumers()
-    loop = asyncio.get_event_loop()
     snakes = [the_snake, Snake(pos=0+10j, controls='wasd')]
     tasks = [
         input.consume(CursesCharacters(stdscr)),
@@ -171,39 +170,12 @@ def main(stdscr):
     for s in snakes:
         tasks.append(
             s.get_directions(input.consumer()))
-    tasks = [asyncio.ensure_future(t, loop=loop) for t in tasks]
-
-    # Run coroutines until the first raises an exception.
-    tasks_wait = asyncio.ensure_future(
-        asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION),
-        loop=loop)
     try:
-        done, pending = loop.run_until_complete(tasks_wait)
-    except:
-        # Exception was raised in run_until_complete, but not in any future --
-        # add dummy future with current exception.
-        tasks_wait.cancel()
-        pending = tasks
-        done = [asyncio.Future()]
-        done[0].set_exception(sys.exc_info()[1])
-
-    # Cancel coroutines that are not done.
-    for p in pending:
-        p.cancel()
-    # Wait for cancellations.
-    loop.stop()
-    loop.run_forever()
-    try:
-        # Handle the original exception or let it bubble up.
-        for f in done:
-            f.result()
+        msg = str(run_coroutines(tasks))
     except GameOver as exn:
         msg = exn.args[0]
     except KeyboardInterrupt:
         msg = 'You killed the game!'
-    else:
-        msg = str(done)
-    loop.close()
 
     raise SystemExit('\n'.join(
         [str(msg),
