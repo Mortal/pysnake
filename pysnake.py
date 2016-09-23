@@ -22,15 +22,57 @@ FOOD = 'o'
 INITIAL_LENGTH = 6
 
 
+class Screen:
+    def __init__(self, stdscr):
+        self.board = {}
+        self.stdscr = stdscr
+        self.stdscr.nodelay(1)
+        curses.curs_set(0)
+        self.YELLOW = 1
+        curses.init_pair(self.YELLOW, curses.COLOR_RED, curses.COLOR_BLACK)
+
+    def addch(self, pos, ch):
+        i = int(pos.imag)
+        j = int(pos.real)
+        self.board[i, j] = ord(ch)
+        self.update(i // 2, j)
+        assert self.inch(pos) == ord(ch)
+
+    def update(self, row, col):
+        ch1 = self.board.get((2*row, col), 0x20) != 0x20
+        ch2 = self.board.get((2*row+1, col), 0x20) != 0x20
+        if ch1 and ch2:
+            c = '\N{FULL BLOCK}'
+        elif ch1:
+            c = '\N{UPPER HALF BLOCK}'
+        elif ch2:
+            c = '\N{LOWER HALF BLOCK}'
+        else:
+            c = ' '
+        self.stdscr.addch(row, col, c, curses.color_pair(self.YELLOW))
+
+    def move(self, pos):
+        i = int(pos.imag)
+        j = int(pos.real)
+        self.stdscr.move(i // 2, j)
+
+    def inch(self, pos):
+        i = int(pos.imag)
+        j = int(pos.real)
+        return self.board.get((i, j), 0x20)
+
+    def refresh(self):
+        self.stdscr.refresh()
+
+
 def main(stdscr):
-    addch = complex_wrap(stdscr.addch)
-    move = complex_wrap(stdscr.move)
-    inch = complex_wrap(stdscr.inch)
+    screen = Screen(stdscr)
+    addch = screen.addch
+    move = screen.move
+    inch = screen.inch
 
     def gettile(pos):
         return chr(inch(pos) & 0xFF)
-
-    stdscr.nodelay(1)
 
     player_waiters = {}
 
@@ -107,8 +149,8 @@ def main(stdscr):
     the_snake = Snake()
 
     def refresh():
-        move(the_snake.pos)
-        stdscr.refresh()
+        move(0)
+        screen.refresh()
 
     width = 30
     height = 20
@@ -175,7 +217,7 @@ def main(stdscr):
     except GameOver as exn:
         msg = exn.args[0]
     except KeyboardInterrupt:
-        msg = 'You killed the game!'
+        raise
 
     raise SystemExit('\n'.join(
         [str(msg),
