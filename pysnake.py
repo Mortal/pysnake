@@ -118,14 +118,15 @@ def main(stdscr):
         async def get_directions(self, it):
             async for c in it:
                 up, left, down, right = self.controls
-                if c == down and self.prev_dir != UP:
-                    self.next_dir = 0+1j
-                elif c == right and self.prev_dir != LEFT:
-                    self.next_dir = 1+0j
-                elif c == up and self.prev_dir != DOWN:
-                    self.next_dir = 0-1j
-                elif c == left and self.prev_dir != RIGHT:
-                    self.next_dir = -1+0j
+                try:
+                    i = self.controls.index(c)
+                except ValueError:
+                    continue
+                next_dir = [0-1j, -1+0j, 0+1j, 1+0j][i]
+                if next_dir == -self.prev_dir:
+                    pass
+                else:
+                    self.next_dir = next_dir
 
         def step(self):
             addch(self.tail[self.tail_index], ' ')
