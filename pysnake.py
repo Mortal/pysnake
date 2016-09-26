@@ -79,7 +79,8 @@ def main(stdscr):
     def put_player(snake, pos):
         addch(pos, BODY)
         for f in player_waiters.pop(pos, ()):
-            f.set_result(snake)
+            if not f.done():
+                f.set_result(snake)
 
     def wait_for_player(pos):
         f = asyncio.Future()
