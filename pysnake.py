@@ -3,7 +3,7 @@ import curses
 import random
 import asyncio
 
-from asyncsnake import LockstepConsumers, run_coroutines
+from asyncsnake import LockstepConsumers, run_coroutines, WaitMap
 from cursessnake import CursesCharacters, complex_wrap, wrapper
 
 
@@ -81,7 +81,7 @@ class Screen:
         j = int(pos.real)
         return self.board.get((i, j), 0x20)
 
-    def gettile(self.pos):
+    def gettile(self, pos):
         return chr(self.inch(pos) & 0xFF)
 
     def refresh(self):
@@ -91,21 +91,14 @@ class Screen:
 def main(stdscr):
     screen = Screen(stdscr)
 
-    player_waiters = {}
+    player_waiters = WaitMap()
 
     def put_player(snake, pos):
         screen.addch(pos, BODY)
-        for f in player_waiters.pop(pos, ()):
-            if not f.done():
-                f.set_result(snake)
-
-    def wait_for_player(pos):
-        f = asyncio.Future()
-        player_waiters.setdefault(pos, []).append(f)
-        return f
+        player_waiters.notify(pos, snake)
 
     async def wait_for_player_rect(pos, w, h):
-        futures = [wait_for_player(pos + i*1j + j)
+        futures = [player_waiters.wait(pos + i*1j + j)
                    for i in range(h)
                    for j in range(w)]
         wait = asyncio.wait(futures, return_when=asyncio.FIRST_COMPLETED)

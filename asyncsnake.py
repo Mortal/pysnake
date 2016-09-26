@@ -97,3 +97,18 @@ def run_coroutines(tasks):
             return [f.result() for f in done]
         finally:
             loop.close()
+
+
+class WaitMap:
+    def __init__(self):
+        self._waiters = {}
+
+    def wait(self, key):
+        f = asyncio.Future()
+        self._waiters.setdefault(key, []).append(f)
+        return f
+
+    def notify(self, key, result=None):
+        for f in self._waiters.pop(key, ()):
+            if not f.done():
+                f.set_result(result)
