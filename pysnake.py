@@ -28,8 +28,11 @@ class Screen:
         self.stdscr = stdscr
         self.stdscr.nodelay(1)
         curses.curs_set(0)
-        self.YELLOW = 1
-        curses.init_pair(self.YELLOW, curses.COLOR_RED, curses.COLOR_BLACK)
+        self.SNAKE, self.FOOD1, self.FOOD2, self.FOOD3 = 1, 2, 3, 4
+        curses.init_pair(self.SNAKE, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(self.FOOD1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        curses.init_pair(self.FOOD2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(self.FOOD3, curses.COLOR_RED, curses.COLOR_BLACK)
 
     def addch(self, pos, ch):
         i = int(pos.imag)
@@ -37,6 +40,13 @@ class Screen:
         self.board[i, j] = ord(ch)
         self.update(i // 2, j)
         assert self.inch(pos) == ord(ch)
+
+    def delch(self, pos, ch):
+        i = int(pos.imag)
+        j = int(pos.real)
+        if self.board.get((i, j), 0x20) == ord(ch):
+            self.board[i, j] = 0x20
+            self.update(i // 2, j)
 
     def update(self, row, col):
         ch1 = self.board.get((2*row, col), 0x20)
@@ -49,7 +59,17 @@ class Screen:
             c = '\N{LOWER HALF BLOCK}'
         else:
             c = ' '
-        self.stdscr.addch(row, col, c, curses.color_pair(self.YELLOW))
+        if BODY in (chr(ch1), chr(ch2)):
+            color = self.SNAKE
+        elif FOOD in (chr(ch1), chr(ch2)):
+            color = self.FOOD1
+        elif '+' in (chr(ch1), chr(ch2)):
+            color = self.FOOD2
+        elif '-' in (chr(ch1), chr(ch2)):
+            color = self.FOOD3
+        else:
+            color = 0
+        self.stdscr.addstr(row, col, c, curses.color_pair(color))
 
     def move(self, pos):
         i = int(pos.imag)
@@ -68,6 +88,7 @@ class Screen:
 def main(stdscr):
     screen = Screen(stdscr)
     addch = screen.addch
+    delch = screen.delch
     move = screen.move
     inch = screen.inch
 
@@ -87,9 +108,25 @@ def main(stdscr):
         player_waiters.setdefault(pos, []).append(f)
         return f
 
+    async def wait_for_player_rect(pos, w, h):
+        futures = [wait_for_player(pos + i*1j + j)
+                   for i in range(h)
+                   for j in range(w)]
+        wait = asyncio.wait(futures, return_when=asyncio.FIRST_COMPLETED)
+        (done,), pending = await wait
+        for f in pending:
+            f.cancel()
+        return await done
+
     def random_position():
         return complex(random.randint(0, width-1),
                        random.randint(0, height-1))
+
+    def random_rect(w, h):
+        max_i = height - (h-1)
+        max_j = width - (w-1)
+        return complex(random.randint(0, max_j-1),
+                       random.randint(0, max_i//2-1)*2)
 
     class Snake:
         def __init__(self, pos=None, dir=None, controls=None):
@@ -159,38 +196,50 @@ def main(stdscr):
     width = 30
     height = 20
 
-    async def food_loop(pos):
-        while True:
-            while gettile(pos) != ' ':
-                pos = random_position()
-            addch(pos, FOOD)
-            refresh()
-            p = await wait_for_player(pos)
-            p.on_eat_food()
-            pos = random_position()
+    def free_rect(pos, w, h):
+        return all(gettile(pos + i*1j + j) == ' '
+                   for i in range(h)
+                   for j in range(w))
 
-    async def faster_loop():
-        pos = random_position()
+    def add_rect(pos, ch, w, h):
+        for i in range(h):
+            for j in range(w):
+                addch(pos + i + j*1j, ch)
+
+    def del_rect(pos, ch, w, h):
+        for i in range(h):
+            for j in range(w):
+                delch(pos + i + j*1j, ch)
+
+    async def food_loop_base(pos, ch, fn):
         while True:
-            while gettile(pos) != ' ':
-                pos = random_position()
-            addch(pos, '+')
+            while not free_rect(pos, 2, 2):
+                pos = random_rect(2, 2)
+            add_rect(pos, ch, 2, 2)
             refresh()
-            p = await wait_for_player(pos)
+            p = await wait_for_player_rect(pos, 2, 2)
+            del_rect(pos, ch, 2, 2)
+            p.on_eat_food()
+            pos = random_rect(2, 2)
+
+    def food_loop():
+        pos = random_rect(2, 2)
+        return food_loop_base(pos, FOOD, lambda p: p.on_eat_food())
+
+    def faster_loop():
+        def update(p):
             if p.wait > 1:
                 p.wait -= 1
-            pos = random_position()
 
-    async def slower_loop():
-        pos = random_position()
-        while True:
-            while gettile(pos) != ' ':
-                pos = random_position()
-            addch(pos, '-')
-            refresh()
-            p = await wait_for_player(pos)
+        pos = random_rect(2, 2)
+        return food_loop_base(pos, '+', update)
+
+    def slower_loop():
+        def update(p):
             p.wait += 1
-            pos = random_position()
+
+        pos = random_rect(2, 2)
+        return food_loop_base(pos, '-', update)
 
     async def play(snakes):
         t = 0
@@ -208,7 +257,7 @@ def main(stdscr):
     snakes = [the_snake, Snake(pos=0+10j, controls='wasd')]
     tasks = [
         input.consume(CursesCharacters(stdscr)),
-        food_loop(5+5j),
+        food_loop(),
         faster_loop(),
         slower_loop(),
         play(snakes),
