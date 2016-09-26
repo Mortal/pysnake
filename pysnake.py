@@ -37,7 +37,7 @@ class Screen:
         i = int(pos.imag)
         j = int(pos.real)
         self.board[i, j] = ch
-        self.update(i // 2, j)
+        self._update(i // 2, j)
         assert self.gettile(pos) == ch
 
     def gettile(self, pos):
@@ -49,7 +49,7 @@ class Screen:
         if self.gettile(pos) == ch:
             self.addch(pos, ' ')
 
-    def update(self, row, col):
+    def _update(self, row, col):
         ch1 = self.board.get((2*row, col), ' ')
         ch2 = self.board.get((2*row+1, col), ' ')
         if ch1 != ' ' and ch2 != ' ':
