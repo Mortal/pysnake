@@ -143,7 +143,6 @@ def main(stdscr):
 
         async def get_directions(self, it):
             async for c in it:
-                up, left, down, right = self.controls
                 try:
                     i = self.controls.index(c)
                 except ValueError:
