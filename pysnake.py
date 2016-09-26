@@ -39,13 +39,13 @@ class Screen:
         assert self.inch(pos) == ord(ch)
 
     def update(self, row, col):
-        ch1 = self.board.get((2*row, col), 0x20) != 0x20
-        ch2 = self.board.get((2*row+1, col), 0x20) != 0x20
-        if ch1 and ch2:
+        ch1 = self.board.get((2*row, col), 0x20)
+        ch2 = self.board.get((2*row+1, col), 0x20)
+        if ch1 != 0x20 and ch2 != 0x20:
             c = '\N{FULL BLOCK}'
-        elif ch1:
+        elif ch1 != 0x20:
             c = '\N{UPPER HALF BLOCK}'
-        elif ch2:
+        elif ch2 != 0x20:
             c = '\N{LOWER HALF BLOCK}'
         else:
             c = ' '
