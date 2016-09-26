@@ -36,52 +36,41 @@ class Screen:
     def addch(self, pos, ch):
         i = int(pos.imag)
         j = int(pos.real)
-        self.board[i, j] = ord(ch)
+        self.board[i, j] = ch
         self.update(i // 2, j)
-        assert self.inch(pos) == ord(ch)
+        assert self.gettile(pos) == ch
 
-    def delch(self, pos, ch):
+    def gettile(self, pos):
         i = int(pos.imag)
         j = int(pos.real)
-        if self.board.get((i, j), 0x20) == ord(ch):
-            self.board[i, j] = 0x20
-            self.update(i // 2, j)
+        return self.board.get((i, j), ' ')
+
+    def delch(self, pos, ch):
+        if self.gettile(pos) == ch:
+            self.addch(pos, ' ')
 
     def update(self, row, col):
-        ch1 = self.board.get((2*row, col), 0x20)
-        ch2 = self.board.get((2*row+1, col), 0x20)
-        if ch1 != 0x20 and ch2 != 0x20:
+        ch1 = self.board.get((2*row, col), ' ')
+        ch2 = self.board.get((2*row+1, col), ' ')
+        if ch1 != ' ' and ch2 != ' ':
             c = '\N{FULL BLOCK}'
-        elif ch1 != 0x20:
+        elif ch1 != ' ':
             c = '\N{UPPER HALF BLOCK}'
-        elif ch2 != 0x20:
+        elif ch2 != ' ':
             c = '\N{LOWER HALF BLOCK}'
         else:
             c = ' '
-        if BODY in (chr(ch1), chr(ch2)):
+        if BODY in (ch1, ch2):
             color = self.SNAKE
-        elif FOOD in (chr(ch1), chr(ch2)):
+        elif FOOD in (ch1, ch2):
             color = self.FOOD1
-        elif '+' in (chr(ch1), chr(ch2)):
+        elif '+' in (ch1, ch2):
             color = self.FOOD2
-        elif '-' in (chr(ch1), chr(ch2)):
+        elif '-' in (ch1, ch2):
             color = self.FOOD3
         else:
             color = 0
         self.stdscr.addstr(row, col, c, curses.color_pair(color))
-
-    def move(self, pos):
-        i = int(pos.imag)
-        j = int(pos.real)
-        self.stdscr.move(i // 2, j)
-
-    def inch(self, pos):
-        i = int(pos.imag)
-        j = int(pos.real)
-        return self.board.get((i, j), 0x20)
-
-    def gettile(self, pos):
-        return chr(self.inch(pos) & 0xFF)
 
     def refresh(self):
         self.stdscr.refresh()
