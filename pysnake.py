@@ -239,7 +239,7 @@ def main(stdscr):
     except GameOver as exn:
         msg = exn.args[0]
     except KeyboardInterrupt:
-        raise
+        msg = 'Thanks for playing!'
 
     raise SystemExit('\n'.join(
         [str(msg),
