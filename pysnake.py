@@ -1,10 +1,9 @@
-import sys
 import curses
 import random
 import asyncio
 
 from asyncsnake import LockstepConsumers, run_coroutines, WaitMap
-from cursessnake import CursesCharacters, complex_wrap, wrapper
+from cursessnake import CursesCharacters, wrapper
 
 
 class GameOver(Exception):
