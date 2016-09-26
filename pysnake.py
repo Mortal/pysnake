@@ -124,11 +124,13 @@ def main(stdscr):
                     continue
                 next_dir = [0-1j, -1+0j, 0+1j, 1+0j][i]
                 if next_dir == -self.prev_dir:
-                    pass
+                    self.next_dir = 0
                 else:
                     self.next_dir = next_dir
 
         def step(self):
+            if self.next_dir == 0:
+                return
             addch(self.tail[self.tail_index], ' ')
             self.pos += self.next_dir
             self.pos = complex(self.pos.real % width, self.pos.imag % height)
