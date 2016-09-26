@@ -198,7 +198,7 @@ def main(stdscr):
             screen.refresh()
             p = await wait_for_player_rect(pos, 2, 2)
             del_rect(pos, ch, 2, 2)
-            p.on_eat_food()
+            fn(p)
             pos = random_rect(2, 2)
 
     def food_loop():
