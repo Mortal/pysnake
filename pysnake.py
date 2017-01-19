@@ -90,10 +90,13 @@ def main(stdscr):
                    for i in range(h)
                    for j in range(w)]
         wait = asyncio.wait(futures, return_when=asyncio.FIRST_COMPLETED)
-        (done,), pending = await wait
+        dones, pending = await wait
         for f in pending:
             f.cancel()
-        return await done
+        results = []
+        for done in dones:
+            results.append(await done)
+        return results[0]
 
     def random_position():
         return complex(random.randint(0, width-1),
@@ -201,33 +204,37 @@ def main(stdscr):
 
             def guard():
                 next_pos = self.wrap_pos(self.pos + self.route[-1])
-                return (screen.gettile(next_pos) != BODY and
+                return (screen.gettile(next_pos) in (target, ' ') and
                         screen.gettile(target_pos) == target)
 
-            self.route_guard = guard
+            self.route_guard = target_pos and guard
 
         def route_to(self, target):
-            parent = {}
+            parent = {self.pos: None}
 
             def backtrack(p):
                 res = []
-                while p in parent:
+                while parent[p]:
                     res.append(parent[p])
-                    p -= parent[p]
+                    p = self.wrap_pos(p - parent[p])
                 return res
 
             n = [self.pos]
             i = 0
             while i < len(n):
                 p = n[i]
-                if screen.gettile(p) == target:
-                    return p, backtrack(p)
                 i += 1
+                v = screen.gettile(p)
+                if v == target:
+                    return p, backtrack(p)
+                elif v != ' ' and p != self.pos:
+                    continue
                 for dir in (0-1j, -1+0j, 0+1j, 1+0j):
-                    q = p + dir
+                    q = self.wrap_pos(p + dir)
                     if q not in parent:
                         parent[q] = dir
                         n.append(q)
+            return None, [0]
 
         def step(self):
             if not self.route_next():
@@ -237,8 +244,8 @@ def main(stdscr):
 
     the_snake = Snake()
 
-    width = 30
-    height = 20
+    width = 60
+    height = 40
 
     def free_rect(pos, w, h):
         return all(screen.gettile(pos + i*1j + j) == ' '
@@ -289,7 +296,12 @@ def main(stdscr):
             n[i] += snakes[i].wait
 
     input = LockstepConsumers()
-    snakes = [the_snake, AutoSnake(pos=0+10j, controls='wasd')]
+    snakes = [the_snake,
+              AutoSnake(pos=0+10j),
+              AutoSnake(pos=10+12j),
+              AutoSnake(pos=20+12j),
+              AutoSnake(pos=0+16j)
+             ]
     tasks = [
         input.consume(CursesCharacters(stdscr)),
         food_loop(),
