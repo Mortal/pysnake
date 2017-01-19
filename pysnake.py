@@ -169,6 +169,21 @@ def main(stdscr):
             if len(self.tail) == width * height:
                 raise GameOver("You win!")
 
+    class AutoSnake(Snake):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+        async def get_directions(self, it):
+            async for c in it:
+                pass
+
+        def step(self):
+            if self.prev_dir == 0+1j:
+                self.next_dir = 1+0j
+            else:
+                self.next_dir = 0+1j
+            super().step()
+
     the_snake = Snake()
 
     width = 30
@@ -223,7 +238,7 @@ def main(stdscr):
             n[i] += snakes[i].wait
 
     input = LockstepConsumers()
-    snakes = [the_snake, Snake(pos=0+10j, controls='wasd')]
+    snakes = [the_snake, AutoSnake(pos=0+10j, controls='wasd')]
     tasks = [
         input.consume(CursesCharacters(stdscr)),
         food_loop(),
