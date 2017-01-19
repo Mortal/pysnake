@@ -175,6 +175,7 @@ def main(stdscr):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.route = []
+            self.route_guard = None
 
         async def get_directions(self, it):
             async for c in it:
@@ -183,14 +184,50 @@ def main(stdscr):
         def route_next(self):
             if not self.route:
                 return
-            next_pos = self.wrap_pos(self.pos + self.route[-1])
-            if screen.gettile(next_pos) == BODY:
+            if self.route_guard and not self.route_guard():
                 return
+            next_pos = self.wrap_pos(self.pos + self.route[-1])
+            # if screen.gettile(next_pos) == BODY:
+            #     return
             self.next_dir = self.route.pop()
             return True
 
         def reroute(self):
-            self.route = [1+0j, 1+0j, 0+1j, -1+0j, 0+1j]
+            if self.wait > 1:
+                target = '+'
+            else:
+                target = FOOD
+            target_pos, self.route = self.route_to(target)
+
+            def guard():
+                next_pos = self.wrap_pos(self.pos + self.route[-1])
+                return (screen.gettile(next_pos) != BODY and
+                        screen.gettile(target_pos) == target)
+
+            self.route_guard = guard
+
+        def route_to(self, target):
+            parent = {}
+
+            def backtrack(p):
+                res = []
+                while p in parent:
+                    res.append(parent[p])
+                    p -= parent[p]
+                return res
+
+            n = [self.pos]
+            i = 0
+            while i < len(n):
+                p = n[i]
+                if screen.gettile(p) == target:
+                    return p, backtrack(p)
+                i += 1
+                for dir in (0-1j, -1+0j, 0+1j, 1+0j):
+                    q = p + dir
+                    if q not in parent:
+                        parent[q] = dir
+                        n.append(q)
 
         def step(self):
             if not self.route_next():
