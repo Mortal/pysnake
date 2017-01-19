@@ -109,8 +109,8 @@ def main(stdscr):
                        random.randint(0, max_i//2-1)*2)
 
     class Snake:
-        def __init__(self, pos=None, dir=None, controls=None):
-            self.wait = 10
+        def __init__(self, pos=None, dir=None, controls=None, speed=None, length=None):
+            self.wait = speed or 10
             if pos is None:
                 self.pos = 0+0j
             else:
@@ -120,7 +120,7 @@ def main(stdscr):
             else:
                 self.prev_dir = self.next_dir = dir
             self.steps = 0
-            self.tail = [self.pos] * INITIAL_LENGTH
+            self.tail = [self.pos] * (length or INITIAL_LENGTH)
             self.tail_index = 0
             if controls is None:
                 controls = [curses.KEY_UP,
@@ -196,18 +196,46 @@ def main(stdscr):
             return True
 
         def reroute(self):
-            if self.wait > 1:
-                target = '+'
+            # if self.wait > 1:
+            #     target = '+'
+            # else:
+            #     target = FOOD
+            target = FOOD
+            res = self.route_to(target)
+            if res:
+                target_pos, self.route = res
+
+                def guard():
+                    next_pos = self.wrap_pos(self.pos + self.route[-1])
+                    return (screen.gettile(next_pos) in (target, ' ') and
+                            screen.gettile(target_pos) == target)
+
+                self.route_guard = target_pos and guard
             else:
-                target = FOOD
-            target_pos, self.route = self.route_to(target)
+                self.route = self.compress()
 
-            def guard():
-                next_pos = self.wrap_pos(self.pos + self.route[-1])
-                return (screen.gettile(next_pos) in (target, ' ') and
-                        screen.gettile(target_pos) == target)
+                def guard():
+                    next_pos = self.wrap_pos(self.pos + self.route[-1])
+                    return screen.gettile(next_pos) != BODY
 
-            self.route_guard = target_pos and guard
+                self.route_guard = guard
+
+        def compress(self):
+            p = self.pos
+            d = self.prev_dir
+            res = []
+            for i in range(min(10, len(self.tail) // 2)):
+                for r in (1j, 1, -1j):
+                    t = self.wrap_pos(p + d*r)
+                    if screen.gettile(t) != BODY:
+                        d = d * r
+                        p += d
+                        res.append(d)
+                        break
+                else:
+                    break
+            res.reverse()
+            return res or [0]
 
         def route_to(self, target):
             parent = {self.pos: None}
@@ -234,7 +262,6 @@ def main(stdscr):
                     if q not in parent:
                         parent[q] = dir
                         n.append(q)
-            return None, [0]
 
         def step(self):
             if not self.route_next():
@@ -242,10 +269,11 @@ def main(stdscr):
                 self.route_next()
             super().step()
 
-    the_snake = Snake()
-
-    width = 60
-    height = 40
+    # width = 160
+    # height = 90
+    width, height = 30, 20
+    # width, height = 15, 15
+    # width, height = 160, 90
 
     def free_rect(pos, w, h):
         return all(screen.gettile(pos + i*1j + j) == ' '
@@ -292,37 +320,52 @@ def main(stdscr):
                 screen.refresh()
                 await asyncio.sleep(0.01 * (n[i] - t))
                 t = n[i]
-            snakes[i].step()
+            try:
+                snakes[i].step()
+            except GameOver:
+                for c in snakes[i].tail:
+                    screen.addch(c, ' ')
+                del snakes[i]
+                pos = random_position()
+                while screen.gettile(pos) != ' ':
+                    pos = random_position()
+                    snakes.append(AutoSnake(speed=1, pos=pos, length=1))
+                continue
             n[i] += snakes[i].wait
 
-    input = LockstepConsumers()
-    snakes = [the_snake,
-              AutoSnake(pos=0+10j),
-              AutoSnake(pos=10+12j),
-              AutoSnake(pos=20+12j),
-              AutoSnake(pos=0+16j)
+    # input = LockstepConsumers()
+    snakes = [
+              AutoSnake(speed=1, pos=0+10j),
+              AutoSnake(speed=1, pos=10+12j),
+              AutoSnake(speed=1, pos=15+12j),
+              AutoSnake(speed=1, pos=0+16j),
              ]
     tasks = [
-        input.consume(CursesCharacters(stdscr)),
+        # input.consume(CursesCharacters(stdscr)),
         food_loop(),
-        faster_loop(),
-        slower_loop(),
+        food_loop(),
+        # food_loop(),
+        # food_loop(),
+        # food_loop(),
+        # faster_loop(),
+        # slower_loop(),
         play(snakes),
     ]
-    for s in snakes:
-        tasks.append(
-            s.get_directions(input.consumer()))
+    # for s in snakes:
+    #     tasks.append(
+    #         s.get_directions(input.consumer()))
     try:
         msg = str(run_coroutines(tasks))
     except GameOver as exn:
         msg = exn.args[0]
     except KeyboardInterrupt:
+        raise
         msg = 'Thanks for playing!'
 
     raise SystemExit('\n'.join(
         [str(msg),
-         "You ate %s foods" % (len(the_snake.tail) - INITIAL_LENGTH),
-         "You moved %s tiles" % the_snake.steps,
+         # "You ate %s foods" % (len(the_snake.tail) - INITIAL_LENGTH),
+         # "You moved %s tiles" % the_snake.steps,
          "Good job!!"]))
 
 
