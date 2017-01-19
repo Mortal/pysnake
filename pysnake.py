@@ -174,16 +174,28 @@ def main(stdscr):
     class AutoSnake(Snake):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
+            self.route = []
 
         async def get_directions(self, it):
             async for c in it:
                 pass
 
+        def route_next(self):
+            if not self.route:
+                return
+            next_pos = self.wrap_pos(self.pos + self.route[-1])
+            if screen.gettile(next_pos) == BODY:
+                return
+            self.next_dir = self.route.pop()
+            return True
+
+        def reroute(self):
+            self.route = [1+0j, 1+0j, 0+1j, -1+0j, 0+1j]
+
         def step(self):
-            if self.prev_dir == 0+1j:
-                self.next_dir = 1+0j
-            else:
-                self.next_dir = 0+1j
+            if not self.route_next():
+                self.reroute()
+                self.route_next()
             super().step()
 
     the_snake = Snake()
