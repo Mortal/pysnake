@@ -141,12 +141,14 @@ def main(stdscr):
                 else:
                     self.next_dir = next_dir
 
+        def wrap_pos(self, pos):
+            return complex(pos.real % width, pos.imag % height)
+
         def step(self):
             if self.next_dir == 0:
                 return
             screen.addch(self.tail[self.tail_index], ' ')
-            self.pos += self.next_dir
-            self.pos = complex(self.pos.real % width, self.pos.imag % height)
+            self.pos = self.wrap_pos(self.pos + self.next_dir)
             self.prev_dir = self.next_dir
             cur_tile = screen.gettile(self.pos)
             if cur_tile == BODY:
