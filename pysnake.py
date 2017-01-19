@@ -1,3 +1,4 @@
+import math
 import curses
 import random
 import asyncio
@@ -145,6 +146,7 @@ def main(stdscr):
                     self.next_dir = next_dir
 
         def wrap_pos(self, pos):
+            pos = WORM.get(pos, pos)
             return complex(pos.real % width, pos.imag % height)
 
         def step(self):
@@ -243,8 +245,8 @@ def main(stdscr):
             def backtrack(p):
                 res = []
                 while parent[p]:
-                    res.append(parent[p])
-                    p = self.wrap_pos(p - parent[p])
+                    d, p = parent[p]
+                    res.append(d)
                 return res
 
             n = [self.pos]
@@ -260,7 +262,7 @@ def main(stdscr):
                 for dir in (0-1j, -1+0j, 0+1j, 1+0j):
                     q = self.wrap_pos(p + dir)
                     if q not in parent:
-                        parent[q] = dir
+                        parent[q] = (dir, p)
                         n.append(q)
 
         def step(self):
@@ -274,6 +276,9 @@ def main(stdscr):
     width, height = 30, 20
     # width, height = 15, 15
     # width, height = 160, 90
+
+    WORM = {random_position(): random_position()
+            for _ in range(3)}
 
     def free_rect(pos, w, h):
         return all(screen.gettile(pos + i*1j + j) == ' '
@@ -325,25 +330,27 @@ def main(stdscr):
             except GameOver:
                 for c in snakes[i].tail:
                     screen.addch(c, ' ')
+                s = max(1, snakes[i].wait-1)
                 del snakes[i]
                 pos = random_position()
                 while screen.gettile(pos) != ' ':
                     pos = random_position()
-                    snakes.append(AutoSnake(speed=1, pos=pos, length=1))
+                snakes.append(AutoSnake(speed=s, pos=pos, length=1))
                 continue
-            n[i] += snakes[i].wait
+            w = max(1, math.ceil(math.log(len(snakes[i].tail), 2)))
+            n[i] += w
 
     # input = LockstepConsumers()
     snakes = [
-              AutoSnake(speed=1, pos=0+10j),
-              AutoSnake(speed=1, pos=10+12j),
-              AutoSnake(speed=1, pos=15+12j),
-              AutoSnake(speed=1, pos=0+16j),
+              AutoSnake(speed=4, pos=0+10j),
+              AutoSnake(speed=4, pos=10+12j),
+              # AutoSnake(speed=4, pos=15+12j),
+              # AutoSnake(speed=4, pos=0+16j),
              ]
     tasks = [
         # input.consume(CursesCharacters(stdscr)),
         food_loop(),
-        food_loop(),
+        # food_loop(),
         # food_loop(),
         # food_loop(),
         # food_loop(),
