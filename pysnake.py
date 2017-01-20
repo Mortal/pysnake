@@ -21,6 +21,7 @@ INITIAL_LENGTH = 6
 
 class ScreenBase:
     COLORS = None
+    BLANK = ' '
 
     def __init__(self, stdscr):
         self.board = {}
@@ -42,23 +43,23 @@ class ScreenBase:
     def gettile(self, pos):
         i = int(pos.imag)
         j = int(pos.real)
-        return self.board.get((i, j), ' ')
+        return self.board.get((i, j), self.BLANK)
 
     def delch(self, pos, ch):
         if self.gettile(pos) == ch:
-            self.addch(pos, ' ')
+            self.addch(pos, self.BLANK)
 
     def _update(self, row, col):
-        ch1 = self.board.get((2*row, col), ' ')
-        ch2 = self.board.get((2*row+1, col), ' ')
-        if ch1 != ' ' and ch2 != ' ':
+        ch1 = self.board.get((2*row, col), self.BLANK)
+        ch2 = self.board.get((2*row+1, col), self.BLANK)
+        if ch1 != self.BLANK and ch2 != self.BLANK:
             c = '\N{FULL BLOCK}'
-        elif ch1 != ' ':
+        elif ch1 != self.BLANK:
             c = '\N{UPPER HALF BLOCK}'
-        elif ch2 != ' ':
+        elif ch2 != self.BLANK:
             c = '\N{LOWER HALF BLOCK}'
         else:
-            c = ' '
+            c = self.BLANK
         color = next(
             (i for ch, i in self._color_id.items() if ch in (ch1, ch2)),
             0)
@@ -154,7 +155,7 @@ def main(stdscr):
         def step(self):
             if self.next_dir == 0:
                 return
-            screen.addch(self.tail[self.tail_index], ' ')
+            screen.addch(self.tail[self.tail_index], screen.BLANK)
             self.pos = self.wrap_pos(self.pos + self.next_dir)
             self.prev_dir = self.next_dir
             cur_tile = screen.gettile(self.pos)
@@ -211,7 +212,7 @@ def main(stdscr):
 
                 def guard():
                     next_pos = self.wrap_pos(self.pos + self.route[-1])
-                    return (screen.gettile(next_pos) in (target, ' ') and
+                    return (screen.gettile(next_pos) in (target, screen.BLANK) and
                             screen.gettile(target_pos) == target)
 
                 self.route_guard = target_pos and guard
@@ -259,7 +260,7 @@ def main(stdscr):
                 v = screen.gettile(p)
                 if v == target:
                     return p, backtrack(p)
-                elif v != ' ' and p != self.pos:
+                elif v != screen.BLANK and p != self.pos:
                     continue
                 for dir in (0-1j, -1+0j, 0+1j, 1+0j):
                     q = self.wrap_pos(p + dir)
@@ -283,7 +284,7 @@ def main(stdscr):
             for _ in range(3)}
 
     def free_rect(pos, w, h):
-        return all(screen.gettile(pos + i*1j + j) == ' '
+        return all(screen.gettile(pos + i*1j + j) == screen.BLANK
                    for i in range(h)
                    for j in range(w))
 
@@ -331,11 +332,11 @@ def main(stdscr):
                 snakes[i].step()
             except GameOver:
                 for c in snakes[i].tail:
-                    screen.addch(c, ' ')
+                    screen.addch(c, screen.BLANK)
                 s = max(1, snakes[i].wait-1)
                 del snakes[i]
                 pos = random_position()
-                while screen.gettile(pos) != ' ':
+                while screen.gettile(pos) != screen.BLANK:
                     pos = random_position()
                 snakes.append(AutoSnake(speed=s, pos=pos, length=1))
                 continue
