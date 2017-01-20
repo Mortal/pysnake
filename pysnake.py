@@ -16,13 +16,13 @@ RIGHT = 1+0j
 DOWN = 0+1j
 LEFT = -1+0j
 
-BODY = 'X'
-FOOD = 'o'
-
 INITIAL_LENGTH = 6
 
 
 class Screen:
+    BODY = 'X'
+    FOOD = 'o'
+
     def __init__(self, stdscr):
         self.board = {}
         self.stdscr = stdscr
@@ -61,9 +61,9 @@ class Screen:
             c = '\N{LOWER HALF BLOCK}'
         else:
             c = ' '
-        if BODY in (ch1, ch2):
+        if self.BODY in (ch1, ch2):
             color = self.SNAKE
-        elif FOOD in (ch1, ch2):
+        elif self.FOOD in (ch1, ch2):
             color = self.FOOD1
         elif '+' in (ch1, ch2):
             color = self.FOOD2
@@ -83,7 +83,7 @@ def main(stdscr):
     player_waiters = WaitMap()
 
     def put_player(snake, pos):
-        screen.addch(pos, BODY)
+        screen.addch(pos, screen.BODY)
         player_waiters.notify(pos, snake)
 
     async def wait_for_player_rect(pos, w, h):
@@ -156,7 +156,7 @@ def main(stdscr):
             self.pos = self.wrap_pos(self.pos + self.next_dir)
             self.prev_dir = self.next_dir
             cur_tile = screen.gettile(self.pos)
-            if cur_tile == BODY:
+            if cur_tile == screen.BODY:
                 raise GameOver("Boom! You hit yourself")
             self.tail[self.tail_index] = self.pos
             put_player(self, self.pos)
@@ -192,7 +192,7 @@ def main(stdscr):
             if self.route_guard and not self.route_guard():
                 return
             next_pos = self.wrap_pos(self.pos + self.route[-1])
-            # if screen.gettile(next_pos) == BODY:
+            # if screen.gettile(next_pos) == screen.BODY:
             #     return
             self.next_dir = self.route.pop()
             return True
@@ -201,8 +201,8 @@ def main(stdscr):
             # if self.wait > 1:
             #     target = '+'
             # else:
-            #     target = FOOD
-            target = FOOD
+            #     target = screen.FOOD
+            target = screen.FOOD
             res = self.route_to(target)
             if res:
                 target_pos, self.route = res
@@ -218,7 +218,7 @@ def main(stdscr):
 
                 def guard():
                     next_pos = self.wrap_pos(self.pos + self.route[-1])
-                    return screen.gettile(next_pos) != BODY
+                    return screen.gettile(next_pos) != screen.BODY
 
                 self.route_guard = guard
 
@@ -229,7 +229,7 @@ def main(stdscr):
             for i in range(min(10, len(self.tail) // 2)):
                 for r in (1j, 1, -1j):
                     t = self.wrap_pos(p + d*r)
-                    if screen.gettile(t) != BODY:
+                    if screen.gettile(t) != screen.BODY:
                         d = d * r
                         p += d
                         res.append(d)
@@ -308,7 +308,7 @@ def main(stdscr):
             pos = random_rect(2, 2)
 
     def food_loop():
-        return food_loop_base(FOOD, lambda p: p.on_eat_food())
+        return food_loop_base(screen.FOOD, lambda p: p.on_eat_food())
 
     def faster_loop():
         return food_loop_base('+', lambda p: p.faster())
