@@ -22,6 +22,8 @@ INITIAL_LENGTH = 6
 class Screen:
     BODY = 'X'
     FOOD = 'o'
+    FASTER = '+'
+    SLOWER = '-'
 
     def __init__(self, stdscr):
         self.board = {}
@@ -65,9 +67,9 @@ class Screen:
             color = self.SNAKE
         elif self.FOOD in (ch1, ch2):
             color = self.FOOD1
-        elif '+' in (ch1, ch2):
+        elif self.FASTER in (ch1, ch2):
             color = self.FOOD2
-        elif '-' in (ch1, ch2):
+        elif self.SLOWER in (ch1, ch2):
             color = self.FOOD3
         else:
             color = 0
@@ -199,7 +201,7 @@ def main(stdscr):
 
         def reroute(self):
             # if self.wait > 1:
-            #     target = '+'
+            #     target = screen.FASTER
             # else:
             #     target = screen.FOOD
             target = screen.FOOD
@@ -311,10 +313,10 @@ def main(stdscr):
         return food_loop_base(screen.FOOD, lambda p: p.on_eat_food())
 
     def faster_loop():
-        return food_loop_base('+', lambda p: p.faster())
+        return food_loop_base(screen.FASTER, lambda p: p.faster())
 
     def slower_loop():
-        return food_loop_base('-', lambda p: p.slower())
+        return food_loop_base(screen.SLOWER, lambda p: p.slower())
 
     async def play(snakes):
         t = 0
