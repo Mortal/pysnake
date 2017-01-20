@@ -88,6 +88,10 @@ class Level:
         self.waiters = WaitMap()
         self.width, self.height = width, height
 
+        self.worm_holes = {
+            self.random_position(): self.random_position()
+            for _ in range(3)}
+
     def random_position(self):
         return complex(random.randint(0, self.width-1),
                        random.randint(0, self.height-1))
@@ -163,6 +167,10 @@ class Level:
             results.append(await done)
         return results[0]
 
+    def wrap_pos(self, pos):
+        pos = self.worm_holes.get(pos, pos)
+        return complex(pos.real % self.width, pos.imag % self.height)
+
     async def play(self, snakes):
         t = 0
         n = [0] * len(snakes)
@@ -227,15 +235,11 @@ def main(stdscr):
                 else:
                     self.next_dir = next_dir
 
-        def wrap_pos(self, pos):
-            pos = WORM.get(pos, pos)
-            return complex(pos.real % width, pos.imag % height)
-
         def step(self):
             if self.next_dir == 0:
                 return
             level.clear_player(self.tail[self.tail_index])
-            self.pos = self.wrap_pos(self.pos + self.next_dir)
+            self.pos = level.wrap_pos(self.pos + self.next_dir)
             self.prev_dir = self.next_dir
             if level.has_player(self.pos):
                 raise GameOver("Boom! You hit yourself")
@@ -286,7 +290,7 @@ def main(stdscr):
                 target_pos, self.route = res
 
                 def guard():
-                    next_pos = self.wrap_pos(self.pos + self.route[-1])
+                    next_pos = level.wrap_pos(self.pos + self.route[-1])
                     return (level.get_tile(next_pos) in (target, Screen.BLANK) and
                             level.get_tile(target_pos) == target)
 
@@ -295,7 +299,7 @@ def main(stdscr):
                 self.route = self.compress()
 
                 def guard():
-                    next_pos = self.wrap_pos(self.pos + self.route[-1])
+                    next_pos = level.wrap_pos(self.pos + self.route[-1])
                     return not level.has_player(next_pos)
 
                 self.route_guard = guard
@@ -306,7 +310,7 @@ def main(stdscr):
             res = []
             for i in range(min(10, len(self.tail) // 2)):
                 for r in (1j, 1, -1j):
-                    t = self.wrap_pos(p + d*r)
+                    t = level.wrap_pos(p + d*r)
                     if not level.has_player(t):
                         d = d * r
                         p += d
@@ -338,7 +342,7 @@ def main(stdscr):
                 elif v != Screen.BLANK and p != self.pos:
                     continue
                 for dir in (0-1j, -1+0j, 0+1j, 1+0j):
-                    q = self.wrap_pos(p + dir)
+                    q = level.wrap_pos(p + dir)
                     if q not in parent:
                         parent[q] = (dir, p)
                         n.append(q)
@@ -354,9 +358,6 @@ def main(stdscr):
     width, height = 30, 20
     # width, height = 15, 15
     # width, height = 160, 90
-
-    WORM = {level.random_position(): level.random_position()
-            for _ in range(3)}
 
     def food_loop():
         return level.food_loop_base(Screen.FOOD, lambda p: p.on_eat_food())
