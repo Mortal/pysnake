@@ -258,7 +258,7 @@ def main(stdscr):
 
         def on_eat_food(self):
             self.tail.insert(self.tail_index, self.tail[self.tail_index])
-            if len(self.tail) == width * height:
+            if len(self.tail) == level.width * level.height:
                 raise GameOver("You win!")
 
     class AutoSnake(Snake):
@@ -355,7 +355,7 @@ def main(stdscr):
 
     # width = 160
     # height = 90
-    width, height = 30, 20
+    # width, height = 30, 20
     # width, height = 15, 15
     # width, height = 160, 90
 
