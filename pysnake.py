@@ -3,6 +3,8 @@ import curses
 import random
 import asyncio
 
+from collections import namedtuple
+
 # from asyncsnake import LockstepConsumers
 from asyncsnake import run_coroutines, WaitMap
 # from cursessnake import CursesCharacters
@@ -82,11 +84,60 @@ class Screen(ScreenBase):
               SLOWER: curses.COLOR_RED}
 
 
+class Tail:
+    def __init__(self):
+        self.positions = []
+        self.index = 0
+
+    def move(self, pos):
+        try:
+            old = self.positions[self.index]
+            self.positions[self.index] = pos
+        except IndexError:
+            if len(self.positions) == 0:
+                old = None
+                self.positions.append(pos)
+            else:
+                raise
+        self.index += 1
+        if self.index == len(self.positions):
+            self.index = 0
+        return old
+
+    def increase_length(self):
+        self.positions.insert(self.index, self.positions[self.index])
+
+    def view(self):
+        return TailView(self)
+
+
+class TailView:
+    def __init__(self, source):
+        self._source = source
+
+    def __len__(self):
+        return len(self._source)
+
+    def __getitem__(self, index):
+        index = (index + self._source.index) % len(self)
+        return self._source[index]
+
+    def __iter__(self):
+        return iter(self._source[self._source.index:] +
+                    self._source[:self._source.index])
+
+
+Snake = namedtuple('Snake', 'pos dir speed tail player')
+
+
 class Level:
     def __init__(self, stdscr, width=30, height=20):
         self.screen = Screen(stdscr)
         self.waiters = WaitMap()
         self.width, self.height = width, height
+
+        self.snakes = []
+        self.tails = []
 
         self.worm_holes = {
             self.random_position(): self.random_position()
@@ -171,6 +222,16 @@ class Level:
         pos = self.worm_holes.get(pos, pos)
         return complex(pos.real % self.width, pos.imag % self.height)
 
+    def step_snake(self, index):
+        snake = self.snakes[index]
+        direction = snake.player.step(snake)
+        if direction == 0:
+            return
+        pos = snake.pos + direction
+        if self.has_player(pos):
+            raise GameOver('Boom! You hit yourself')
+
+
     async def play(self, snakes):
         t = 0
         n = [0] * len(snakes)
@@ -235,12 +296,17 @@ def main(stdscr):
                 else:
                     self.next_dir = next_dir
 
-        def step(self):
+        def step(self, prev_dir):
+            if self.change_dir is not None:
+                d = self.change_dir
+                self.change_dir = None
+                return d
+            return prev_dir
+            return self.next_dir
             if self.next_dir == 0:
                 return
             level.clear_player(self.tail[self.tail_index])
             self.pos = level.wrap_pos(self.pos + self.next_dir)
-            self.prev_dir = self.next_dir
             if level.has_player(self.pos):
                 raise GameOver("Boom! You hit yourself")
             self.tail[self.tail_index] = self.pos
