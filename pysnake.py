@@ -19,22 +19,18 @@ LEFT = -1+0j
 INITIAL_LENGTH = 6
 
 
-class Screen:
-    BODY = 'X'
-    FOOD = 'o'
-    FASTER = '+'
-    SLOWER = '-'
+class ScreenBase:
+    COLORS = None
 
     def __init__(self, stdscr):
         self.board = {}
         self.stdscr = stdscr
         self.stdscr.nodelay(1)
         curses.curs_set(0)
-        self.SNAKE, self.FOOD1, self.FOOD2, self.FOOD3 = 1, 2, 3, 4
-        curses.init_pair(self.SNAKE, curses.COLOR_BLUE, curses.COLOR_BLACK)
-        curses.init_pair(self.FOOD1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-        curses.init_pair(self.FOOD2, curses.COLOR_GREEN, curses.COLOR_BLACK)
-        curses.init_pair(self.FOOD3, curses.COLOR_RED, curses.COLOR_BLACK)
+        self._color_id = {k: i
+                          for i, k in enumerate(self.COLORS.keys(), 1)}
+        for k, c in self.COLORS.items():
+            curses.init_pair(self._color_id[k], c, curses.COLOR_BLACK)
 
     def addch(self, pos, ch):
         i = int(pos.imag)
@@ -63,20 +59,24 @@ class Screen:
             c = '\N{LOWER HALF BLOCK}'
         else:
             c = ' '
-        if self.BODY in (ch1, ch2):
-            color = self.SNAKE
-        elif self.FOOD in (ch1, ch2):
-            color = self.FOOD1
-        elif self.FASTER in (ch1, ch2):
-            color = self.FOOD2
-        elif self.SLOWER in (ch1, ch2):
-            color = self.FOOD3
-        else:
-            color = 0
+        color = next(
+            (i for ch, i in self._color_id.items() if ch in (ch1, ch2)),
+            0)
         self.stdscr.addstr(row, col, c, curses.color_pair(color))
 
     def refresh(self):
         self.stdscr.refresh()
+
+
+class Screen(ScreenBase):
+    BODY = 'X'
+    FOOD = 'o'
+    FASTER = '+'
+    SLOWER = '-'
+    COLORS = {BODY: curses.COLOR_BLUE,
+              FOOD: curses.COLOR_YELLOW,
+              FASTER: curses.COLOR_GREEN,
+              SLOWER: curses.COLOR_RED}
 
 
 def main(stdscr):
