@@ -3,8 +3,10 @@ import curses
 import random
 import asyncio
 
-from asyncsnake import LockstepConsumers, run_coroutines, WaitMap
-from cursessnake import CursesCharacters, wrapper
+# from asyncsnake import LockstepConsumers
+from asyncsnake import run_coroutines, WaitMap
+# from cursessnake import CursesCharacters
+from cursessnake import wrapper
 
 
 class GameOver(Exception):
@@ -80,17 +82,76 @@ class Screen(ScreenBase):
               SLOWER: curses.COLOR_RED}
 
 
-def main(stdscr):
-    screen = Screen(stdscr)
+class Level:
+    def __init__(self, stdscr, width=30, height=20):
+        self.screen = Screen(stdscr)
+        self.waiters = WaitMap()
+        self.width, self.height = width, height
 
-    player_waiters = WaitMap()
+    def random_position(self):
+        return complex(random.randint(0, self.width-1),
+                       random.randint(0, self.height-1))
 
-    def put_player(snake, pos):
-        screen.addch(pos, screen.BODY)
-        player_waiters.notify(pos, snake)
+    def is_free(self, pos):
+        return self.get_tile(pos) == self.screen.BLANK
 
-    async def wait_for_player_rect(pos, w, h):
-        futures = [player_waiters.wait(pos + i*1j + j)
+    def random_free_position(self):
+        p = self.random_position()
+        while not self.is_free(p):
+            p = self.random_position()
+        return p
+
+    def random_rect(self, w, h):
+        max_i = self.height - (h-1)
+        max_j = self.width - (w-1)
+        return complex(random.randint(0, max_j-1),
+                       random.randint(0, max_i//2-1)*2)
+
+    def free_rect(self, pos, w, h):
+        return all(self.is_free(pos + i*1j + j)
+                   for i in range(h)
+                   for j in range(w))
+
+    def random_free_rect(self, w, h):
+        pos = self.random_rect(w, h)
+        while not self.free_rect(pos, w, h):
+            pos = self.random_rect(w, h)
+        return pos
+
+    def add_rect(self, pos, ch, w, h):
+        for i in range(h):
+            for j in range(w):
+                self.screen.addch(pos + i + j*1j, ch)
+
+    def del_rect(self, pos, ch, w, h):
+        for i in range(h):
+            for j in range(w):
+                self.screen.delch(pos + i + j*1j, ch)
+
+    async def food_loop_base(self, ch, fn, w=2, h=2):
+        while True:
+            pos = self.random_free_rect(w, h)
+            self.add_rect(pos, ch, w, h)
+            self.screen.refresh()
+            p = await self.wait_for_player_rect(pos, w, h)
+            self.del_rect(pos, ch, w, h)
+            fn(p)
+
+    def put_player(self, snake, pos):
+        self.screen.addch(pos, self.screen.BODY)
+        self.waiters.notify(pos, snake)
+
+    def clear_player(self, pos):
+        self.screen.addch(pos, self.screen.BLANK)
+
+    def has_player(self, pos):
+        return self.get_tile(pos) == self.screen.BODY
+
+    def get_tile(self, pos):
+        return self.screen.gettile(pos)
+
+    async def wait_for_player_rect(self, pos, w, h):
+        futures = [self.waiters.wait(pos + i*1j + j)
                    for i in range(h)
                    for j in range(w)]
         wait = asyncio.wait(futures, return_when=asyncio.FIRST_COMPLETED)
@@ -102,15 +163,33 @@ def main(stdscr):
             results.append(await done)
         return results[0]
 
-    def random_position():
-        return complex(random.randint(0, width-1),
-                       random.randint(0, height-1))
+    async def play(self, snakes):
+        t = 0
+        n = [0] * len(snakes)
+        while True:
+            i = min(range(len(snakes)), key=lambda i: n[i])
+            if n[i] > t:
+                self.screen.refresh()
+                await asyncio.sleep(0.01 * (n[i] - t))
+                t = n[i]
+            try:
+                snakes[i].step()
+            except GameOver:
+                for c in snakes[i].tail:
+                    self.screen.addch(c, Screen.BLANK)
+                # s = max(1, snakes[i].wait-1)
+                del snakes[i]
+                if not snakes:
+                    raise
+                # pos = self.random_free_position()
+                # snakes.append(AutoSnake(speed=s, pos=pos, length=1))
+                continue
+            w = max(1, math.ceil(math.log(len(snakes[i].tail), 2)))
+            n[i] += w
 
-    def random_rect(w, h):
-        max_i = height - (h-1)
-        max_j = width - (w-1)
-        return complex(random.randint(0, max_j-1),
-                       random.randint(0, max_i//2-1)*2)
+
+def main(stdscr):
+    level = Level(stdscr)
 
     class Snake:
         def __init__(self, pos=None, dir=None, controls=None, speed=None, length=None):
@@ -155,14 +234,13 @@ def main(stdscr):
         def step(self):
             if self.next_dir == 0:
                 return
-            screen.addch(self.tail[self.tail_index], screen.BLANK)
+            level.clear_player(self.tail[self.tail_index])
             self.pos = self.wrap_pos(self.pos + self.next_dir)
             self.prev_dir = self.next_dir
-            cur_tile = screen.gettile(self.pos)
-            if cur_tile == screen.BODY:
+            if level.has_player(self.pos):
                 raise GameOver("Boom! You hit yourself")
             self.tail[self.tail_index] = self.pos
-            put_player(self, self.pos)
+            level.put_player(self, self.pos)
             self.tail_index += 1
             self.steps += 1
             if self.tail_index == len(self.tail):
@@ -194,26 +272,23 @@ def main(stdscr):
                 return
             if self.route_guard and not self.route_guard():
                 return
-            next_pos = self.wrap_pos(self.pos + self.route[-1])
-            # if screen.gettile(next_pos) == screen.BODY:
-            #     return
             self.next_dir = self.route.pop()
             return True
 
         def reroute(self):
             # if self.wait > 1:
-            #     target = screen.FASTER
+            #     target = Screen.FASTER
             # else:
-            #     target = screen.FOOD
-            target = screen.FOOD
+            #     target = Screen.FOOD
+            target = Screen.FOOD
             res = self.route_to(target)
             if res:
                 target_pos, self.route = res
 
                 def guard():
                     next_pos = self.wrap_pos(self.pos + self.route[-1])
-                    return (screen.gettile(next_pos) in (target, screen.BLANK) and
-                            screen.gettile(target_pos) == target)
+                    return (level.get_tile(next_pos) in (target, Screen.BLANK) and
+                            level.get_tile(target_pos) == target)
 
                 self.route_guard = target_pos and guard
             else:
@@ -221,7 +296,7 @@ def main(stdscr):
 
                 def guard():
                     next_pos = self.wrap_pos(self.pos + self.route[-1])
-                    return screen.gettile(next_pos) != screen.BODY
+                    return not level.has_player(next_pos)
 
                 self.route_guard = guard
 
@@ -232,7 +307,7 @@ def main(stdscr):
             for i in range(min(10, len(self.tail) // 2)):
                 for r in (1j, 1, -1j):
                     t = self.wrap_pos(p + d*r)
-                    if screen.gettile(t) != screen.BODY:
+                    if not level.has_player(t):
                         d = d * r
                         p += d
                         res.append(d)
@@ -257,10 +332,10 @@ def main(stdscr):
             while i < len(n):
                 p = n[i]
                 i += 1
-                v = screen.gettile(p)
+                v = level.get_tile(p)
                 if v == target:
                     return p, backtrack(p)
-                elif v != screen.BLANK and p != self.pos:
+                elif v != Screen.BLANK and p != self.pos:
                     continue
                 for dir in (0-1j, -1+0j, 0+1j, 1+0j):
                     q = self.wrap_pos(p + dir)
@@ -280,68 +355,17 @@ def main(stdscr):
     # width, height = 15, 15
     # width, height = 160, 90
 
-    WORM = {random_position(): random_position()
+    WORM = {level.random_position(): level.random_position()
             for _ in range(3)}
 
-    def free_rect(pos, w, h):
-        return all(screen.gettile(pos + i*1j + j) == screen.BLANK
-                   for i in range(h)
-                   for j in range(w))
-
-    def add_rect(pos, ch, w, h):
-        for i in range(h):
-            for j in range(w):
-                screen.addch(pos + i + j*1j, ch)
-
-    def del_rect(pos, ch, w, h):
-        for i in range(h):
-            for j in range(w):
-                screen.delch(pos + i + j*1j, ch)
-
-    async def food_loop_base(ch, fn):
-        pos = random_rect(2, 2)
-        while True:
-            while not free_rect(pos, 2, 2):
-                pos = random_rect(2, 2)
-            add_rect(pos, ch, 2, 2)
-            screen.refresh()
-            p = await wait_for_player_rect(pos, 2, 2)
-            del_rect(pos, ch, 2, 2)
-            fn(p)
-            pos = random_rect(2, 2)
-
     def food_loop():
-        return food_loop_base(screen.FOOD, lambda p: p.on_eat_food())
+        return level.food_loop_base(Screen.FOOD, lambda p: p.on_eat_food())
 
     def faster_loop():
-        return food_loop_base(screen.FASTER, lambda p: p.faster())
+        return level.food_loop_base(Screen.FASTER, lambda p: p.faster())
 
     def slower_loop():
-        return food_loop_base(screen.SLOWER, lambda p: p.slower())
-
-    async def play(snakes):
-        t = 0
-        n = [0] * len(snakes)
-        while True:
-            i = min(range(len(snakes)), key=lambda i: n[i])
-            if n[i] > t:
-                screen.refresh()
-                await asyncio.sleep(0.01 * (n[i] - t))
-                t = n[i]
-            try:
-                snakes[i].step()
-            except GameOver:
-                for c in snakes[i].tail:
-                    screen.addch(c, screen.BLANK)
-                s = max(1, snakes[i].wait-1)
-                del snakes[i]
-                pos = random_position()
-                while screen.gettile(pos) != screen.BLANK:
-                    pos = random_position()
-                snakes.append(AutoSnake(speed=s, pos=pos, length=1))
-                continue
-            w = max(1, math.ceil(math.log(len(snakes[i].tail), 2)))
-            n[i] += w
+        return level.food_loop_base(Screen.SLOWER, lambda p: p.slower())
 
     # input = LockstepConsumers()
     snakes = [
@@ -359,7 +383,7 @@ def main(stdscr):
         # food_loop(),
         # faster_loop(),
         # slower_loop(),
-        play(snakes),
+        level.play(snakes),
     ]
     # for s in snakes:
     #     tasks.append(
