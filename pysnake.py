@@ -5,9 +5,9 @@ import asyncio
 
 from collections import namedtuple
 
-# from asyncsnake import LockstepConsumers
+from asyncsnake import LockstepConsumers
 from asyncsnake import run_coroutines, WaitMap
-# from cursessnake import CursesCharacters
+from cursessnake import CursesCharacters
 from cursessnake import wrapper
 
 
@@ -136,11 +136,11 @@ Snake = namedtuple('Snake', 'dir speed tail player level')
 
 
 class Level:
-    def __init__(self, stdscr, width=30, height=20, step=0.001):
+    def __init__(self, stdscr, width=30, height=20, step=0.02):
         self.screen = Screen(stdscr)
         self.waiters = WaitMap()
         self.width, self.height = width, height
-        self.step = 0.01
+        self.step = step
 
         self.snakes = []
         self.tails = []
@@ -245,11 +245,11 @@ class Level:
         if direction == 0:
             raise GameOver("You give up?")
         pos = self.move(snake.tail[-1], direction)
+        if self.has_player(pos):
+            raise GameOver('Boom! You hit yourself')
         old_pos = self.tails[index].move(pos)
         if old_pos is not None:
             self.clear_player(old_pos)
-        if self.has_player(pos):
-            raise GameOver('Boom! You hit yourself')
         self.put_player(index, pos)
         self.snakes[index] = Snake(
             dir=direction, level=self,
@@ -262,6 +262,8 @@ class Level:
         pos = self.random_free_position()
         self.tails[index] = Tail()
         self.tails[index].move(pos)
+        self.tails[index].increase_length(
+            getattr(player, 'initial_length', 1) - 1)
         self.snakes[index] = Snake(
             dir=1+0j, speed=5, level=self,
             tail=self.tails[index].view(), player=player)
@@ -368,76 +370,43 @@ class AutoSnake:
         return self.route.pop()
 
 
+class HumanSnake:
+    initial_length = 10
+
+    def __init__(self, controls=None):
+        self.steps = 0
+        if controls is None:
+            controls = [curses.KEY_UP,
+                        curses.KEY_LEFT,
+                        curses.KEY_DOWN,
+                        curses.KEY_RIGHT]
+        else:
+            controls = [ord(c) if isinstance(c, str)
+                        else c for c in controls]
+        self.controls = controls
+        self.prev_dir = 0
+        self.next_dir = 1+0j
+
+    async def get_directions(self, it):
+        async for c in it:
+            try:
+                i = self.controls.index(c)
+            except ValueError:
+                continue
+            next_dir = [0-1j, -1+0j, 0+1j, 1+0j][i]
+            if next_dir == -self.prev_dir:
+                # self.next_dir = 0
+                pass
+            else:
+                self.next_dir = next_dir
+
+    def step(self, state):
+        self.prev_dir = self.next_dir
+        return self.next_dir
+
+
 def main(stdscr):
     level = Level(stdscr)
-
-    class Snake:
-        def __init__(self, pos=None, dir=None, controls=None, speed=None,
-                     length=None):
-            self.wait = speed or 10
-            if pos is None:
-                self.pos = 0+0j
-            else:
-                self.pos = pos
-            if dir is None:
-                self.prev_dir = self.next_dir = RIGHT
-            else:
-                self.prev_dir = self.next_dir = dir
-            self.steps = 0
-            self.tail = [self.pos] * (length or INITIAL_LENGTH)
-            self.tail_index = 0
-            if controls is None:
-                controls = [curses.KEY_UP,
-                            curses.KEY_LEFT,
-                            curses.KEY_DOWN,
-                            curses.KEY_RIGHT]
-            else:
-                controls = [ord(c) if isinstance(c, str)
-                            else c for c in controls]
-            self.controls = controls
-
-        async def get_directions(self, it):
-            async for c in it:
-                try:
-                    i = self.controls.index(c)
-                except ValueError:
-                    continue
-                next_dir = [0-1j, -1+0j, 0+1j, 1+0j][i]
-                if next_dir == -self.prev_dir:
-                    self.next_dir = 0
-                else:
-                    self.next_dir = next_dir
-
-        def step(self, prev_dir):
-            if self.change_dir is not None:
-                d = self.change_dir
-                self.change_dir = None
-                return d
-            return prev_dir
-            return self.next_dir
-            if self.next_dir == 0:
-                return
-            level.clear_player(self.tail[self.tail_index])
-            self.pos = level.move(self.pos, self.next_dir)
-            if level.has_player(self.pos):
-                raise GameOver("Boom! You hit yourself")
-            self.tail[self.tail_index] = self.pos
-            level.put_player(self, self.pos)
-            self.tail_index += 1
-            self.steps += 1
-            if self.tail_index == len(self.tail):
-                self.tail_index = 0
-
-        def slower(self):
-            self.wait = self.wait + 1
-
-        def faster(self):
-            self.wait = max(1, self.wait - 1)
-
-        def on_eat_food(self):
-            self.tail.insert(self.tail_index, self.tail[self.tail_index])
-            if len(self.tail) == level.width * level.height:
-                raise GameOver("You win!")
 
     # width = 160
     # height = 90
@@ -451,15 +420,18 @@ def main(stdscr):
     def slower_loop():
         return level.food_loop_base(Screen.SLOWER, lambda p: p.slower())
 
-    # input = LockstepConsumers()
-    snakes = [
-              AutoSnake(),
-              AutoSnake(),
-              AutoSnake(),
-              AutoSnake(),
-             ]
+    input = LockstepConsumers()
+    humans = [
+        HumanSnake(),
+    ]
+    robots = [
+        # AutoSnake(),
+        # AutoSnake(),
+        # AutoSnake(),
+        # AutoSnake(),
+    ]
     tasks = [
-        # input.consume(CursesCharacters(stdscr)),
+        input.consume(CursesCharacters(stdscr)),
         level.food_loop(),
         # food_loop(),
         # food_loop(),
@@ -467,11 +439,11 @@ def main(stdscr):
         # food_loop(),
         # faster_loop(),
         # slower_loop(),
-        level.play(snakes),
+        level.play(humans + robots),
     ]
-    # for s in snakes:
-    #     tasks.append(
-    #         s.get_directions(input.consumer()))
+    for s in humans:
+        tasks.append(
+            s.get_directions(input.consumer()))
     try:
         msg = str(run_coroutines(tasks))
     except GameOver as exn:
