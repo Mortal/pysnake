@@ -425,7 +425,7 @@ def main(stdscr):
         HumanSnake(),
     ]
     robots = [
-        # AutoSnake(),
+        AutoSnake(),
         # AutoSnake(),
         # AutoSnake(),
         # AutoSnake(),
