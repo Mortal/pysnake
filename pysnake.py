@@ -85,6 +85,10 @@ class Screen(ScreenBase):
 
 
 class Tail:
+    '''
+    >>> t = Tail()
+    >>> tjnn
+    '''
     def __init__(self):
         self.positions = []
         self.index = 0
@@ -104,8 +108,9 @@ class Tail:
             self.index = 0
         return old
 
-    def increase_length(self):
-        self.positions.insert(self.index, self.positions[self.index])
+    def increase_length(self, n=1):
+        for _ in range(n):
+            self.positions.insert(self.index, self.positions[self.index])
 
     def view(self):
         return TailView(self)
@@ -116,39 +121,43 @@ class TailView:
         self._source = source
 
     def __len__(self):
-        return len(self._source)
+        return len(self._source.positions)
 
     def __getitem__(self, index):
         index = (index + self._source.index) % len(self)
-        return self._source[index]
+        return self._source.positions[index]
 
     def __iter__(self):
-        return iter(self._source[self._source.index:] +
-                    self._source[:self._source.index])
+        return iter(self._source.positions[self._source.index:] +
+                    self._source.positions[:self._source.index])
 
 
-Snake = namedtuple('Snake', 'pos dir speed tail player')
+Snake = namedtuple('Snake', 'dir speed tail player level')
 
 
 class Level:
-    def __init__(self, stdscr, width=30, height=20):
+    def __init__(self, stdscr, width=30, height=20, step=0.001):
         self.screen = Screen(stdscr)
         self.waiters = WaitMap()
         self.width, self.height = width, height
+        self.step = 0.01
 
         self.snakes = []
         self.tails = []
 
         self.worm_holes = {
             self.random_position(): self.random_position()
-            for _ in range(3)}
+            for _ in range(0)}
+
+    def get_tile(self, pos):
+        return self.screen.gettile(pos)
+
+    def is_free(self, pos):
+        return self.get_tile(pos) == self.screen.BLANK
 
     def random_position(self):
         return complex(random.randint(0, self.width-1),
                        random.randint(0, self.height-1))
-
-    def is_free(self, pos):
-        return self.get_tile(pos) == self.screen.BLANK
 
     def random_free_position(self):
         p = self.random_position()
@@ -156,16 +165,16 @@ class Level:
             p = self.random_position()
         return p
 
+    def free_rect(self, pos, w, h):
+        return all(self.is_free(pos + i*1j + j)
+                   for i in range(h)
+                   for j in range(w))
+
     def random_rect(self, w, h):
         max_i = self.height - (h-1)
         max_j = self.width - (w-1)
         return complex(random.randint(0, max_j-1),
                        random.randint(0, max_i//2-1)*2)
-
-    def free_rect(self, pos, w, h):
-        return all(self.is_free(pos + i*1j + j)
-                   for i in range(h)
-                   for j in range(w))
 
     def random_free_rect(self, w, h):
         pos = self.random_rect(w, h)
@@ -185,25 +194,20 @@ class Level:
 
     async def food_loop_base(self, ch, fn, w=2, h=2):
         while True:
-            pos = self.random_free_rect(w, h)
+            try:
+                pos = self.random_free_rect(w, h)
+            except KeyboardInterrupt:
+                await asyncio.sleep(1)
+                continue
             self.add_rect(pos, ch, w, h)
             self.screen.refresh()
-            p = await self.wait_for_player_rect(pos, w, h)
+            x = await self.wait_for_player_rect(pos, w, h)
             self.del_rect(pos, ch, w, h)
-            fn(p)
+            fn(x)
 
-    def put_player(self, snake, pos):
-        self.screen.addch(pos, self.screen.BODY)
-        self.waiters.notify(pos, snake)
-
-    def clear_player(self, pos):
-        self.screen.addch(pos, self.screen.BLANK)
-
-    def has_player(self, pos):
-        return self.get_tile(pos) == self.screen.BODY
-
-    def get_tile(self, pos):
-        return self.screen.gettile(pos)
+    def food_loop(self):
+        return self.food_loop_base(
+            Screen.FOOD, lambda idx: self.tails[idx].increase_length())
 
     async def wait_for_player_rect(self, pos, w, h):
         futures = [self.waiters.wait(pos + i*1j + j)
@@ -218,50 +222,158 @@ class Level:
             results.append(await done)
         return results[0]
 
+    def put_player(self, x, pos):
+        self.screen.addch(pos, self.screen.BODY)
+        self.waiters.notify(pos, x)
+
+    def clear_player(self, pos):
+        self.screen.addch(pos, self.screen.BLANK)
+
+    def has_player(self, pos):
+        return self.get_tile(pos) == self.screen.BODY
+
     def wrap_pos(self, pos):
         pos = self.worm_holes.get(pos, pos)
         return complex(pos.real % self.width, pos.imag % self.height)
+
+    def move(self, pos, dir):
+        return self.wrap_pos(pos + dir)
 
     def step_snake(self, index):
         snake = self.snakes[index]
         direction = snake.player.step(snake)
         if direction == 0:
-            return
-        pos = snake.pos + direction
+            raise GameOver("You give up?")
+        pos = self.move(snake.tail[-1], direction)
+        old_pos = self.tails[index].move(pos)
+        if old_pos is not None:
+            self.clear_player(old_pos)
         if self.has_player(pos):
             raise GameOver('Boom! You hit yourself')
+        self.put_player(index, pos)
+        self.snakes[index] = Snake(
+            dir=direction, level=self,
+            speed=snake.speed, tail=snake.tail, player=snake.player)
 
+    def respawn_snake(self, index, player):
+        if self.tails[index]:
+            for c in self.tails[index].view():
+                self.clear_player(c)
+        pos = self.random_free_position()
+        self.tails[index] = Tail()
+        self.tails[index].move(pos)
+        self.snakes[index] = Snake(
+            dir=1+0j, speed=5, level=self,
+            tail=self.tails[index].view(), player=player)
+        self.put_player(index, pos)
 
-    async def play(self, snakes):
+    async def play(self, players):
+        self.snakes = [None]*len(players)
+        self.tails = [None]*len(players)
+        for i, p in enumerate(players):
+            self.respawn_snake(i, p)
         t = 0
-        n = [0] * len(snakes)
+        n = [0] * len(self.snakes)
         while True:
-            i = min(range(len(snakes)), key=lambda i: n[i])
+            i = min(range(len(self.snakes)), key=lambda i: n[i])
             if n[i] > t:
                 self.screen.refresh()
-                await asyncio.sleep(0.01 * (n[i] - t))
+                await asyncio.sleep(self.step * (n[i] - t))
                 t = n[i]
             try:
-                snakes[i].step()
+                self.step_snake(i)
             except GameOver:
-                for c in snakes[i].tail:
-                    self.screen.addch(c, Screen.BLANK)
-                # s = max(1, snakes[i].wait-1)
-                del snakes[i]
-                if not snakes:
-                    raise
-                # pos = self.random_free_position()
-                # snakes.append(AutoSnake(speed=s, pos=pos, length=1))
-                continue
-            w = max(1, math.ceil(math.log(len(snakes[i].tail), 2)))
+                self.respawn_snake(i, self.snakes[i].player)
+            w = max(1, math.ceil(math.log(len(self.tails[i].positions), 2)))
             n[i] += w
+
+
+class AutoSnake:
+    def __init__(self):
+        self.route = []
+        self.route_guard = None
+
+    def reroute(self, state):
+        level = state.level
+        # if self.wait > 1:
+        #     target = Screen.FASTER
+        # else:
+        #     target = Screen.FOOD
+        target = Screen.FOOD
+        res = self.route_to(level, state.tail[-1], target)
+        if res:
+            target_pos, self.route = res
+
+            def guard():
+                next_pos = level.move(state.tail[-1], self.route[-1])
+                return (level.get_tile(next_pos) in (target, Screen.BLANK) and
+                        level.get_tile(target_pos) == target)
+
+            self.route_guard = target_pos and guard
+        else:
+            self.route = self.compress(level, state.tail)
+
+            def guard():
+                next_pos = level.move(state.tail[-1], self.route[-1])
+                return not level.has_player(next_pos)
+
+            self.route_guard = guard
+
+    def compress(self, level, tail):
+        p = tail[-1]
+        d = 1
+        res = []
+        for i in range(min(10, len(tail) // 2)):
+            for r in (1j, 1, -1j):
+                t = level.move(p, d*r)
+                if not level.has_player(t):
+                    d = d * r
+                    p += d
+                    res.append(d)
+                    break
+            else:
+                break
+        res.reverse()
+        return res or [0]
+
+    def route_to(self, level, pos, target):
+        parent = {pos: None}
+
+        def backtrack(p):
+            res = []
+            while parent[p]:
+                d, p = parent[p]
+                res.append(d)
+            return res
+
+        n = [pos]
+        i = 0
+        while i < len(n):
+            p = n[i]
+            i += 1
+            v = level.get_tile(p)
+            if v == target:
+                return p, backtrack(p)
+            elif v != Screen.BLANK and p != pos:
+                continue
+            for dir in (0-1j, -1+0j, 0+1j, 1+0j):
+                q = level.move(p, dir)
+                if q not in parent:
+                    parent[q] = (dir, p)
+                    n.append(q)
+
+    def step(self, state):
+        if not self.route or (self.route_guard and not self.route_guard()):
+            self.reroute(state)
+        return self.route.pop()
 
 
 def main(stdscr):
     level = Level(stdscr)
 
     class Snake:
-        def __init__(self, pos=None, dir=None, controls=None, speed=None, length=None):
+        def __init__(self, pos=None, dir=None, controls=None, speed=None,
+                     length=None):
             self.wait = speed or 10
             if pos is None:
                 self.pos = 0+0j
@@ -306,7 +418,7 @@ def main(stdscr):
             if self.next_dir == 0:
                 return
             level.clear_player(self.tail[self.tail_index])
-            self.pos = level.wrap_pos(self.pos + self.next_dir)
+            self.pos = level.move(self.pos, self.next_dir)
             if level.has_player(self.pos):
                 raise GameOver("Boom! You hit yourself")
             self.tail[self.tail_index] = self.pos
@@ -327,106 +439,11 @@ def main(stdscr):
             if len(self.tail) == level.width * level.height:
                 raise GameOver("You win!")
 
-    class AutoSnake(Snake):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.route = []
-            self.route_guard = None
-
-        async def get_directions(self, it):
-            async for c in it:
-                pass
-
-        def route_next(self):
-            if not self.route:
-                return
-            if self.route_guard and not self.route_guard():
-                return
-            self.next_dir = self.route.pop()
-            return True
-
-        def reroute(self):
-            # if self.wait > 1:
-            #     target = Screen.FASTER
-            # else:
-            #     target = Screen.FOOD
-            target = Screen.FOOD
-            res = self.route_to(target)
-            if res:
-                target_pos, self.route = res
-
-                def guard():
-                    next_pos = level.wrap_pos(self.pos + self.route[-1])
-                    return (level.get_tile(next_pos) in (target, Screen.BLANK) and
-                            level.get_tile(target_pos) == target)
-
-                self.route_guard = target_pos and guard
-            else:
-                self.route = self.compress()
-
-                def guard():
-                    next_pos = level.wrap_pos(self.pos + self.route[-1])
-                    return not level.has_player(next_pos)
-
-                self.route_guard = guard
-
-        def compress(self):
-            p = self.pos
-            d = self.prev_dir
-            res = []
-            for i in range(min(10, len(self.tail) // 2)):
-                for r in (1j, 1, -1j):
-                    t = level.wrap_pos(p + d*r)
-                    if not level.has_player(t):
-                        d = d * r
-                        p += d
-                        res.append(d)
-                        break
-                else:
-                    break
-            res.reverse()
-            return res or [0]
-
-        def route_to(self, target):
-            parent = {self.pos: None}
-
-            def backtrack(p):
-                res = []
-                while parent[p]:
-                    d, p = parent[p]
-                    res.append(d)
-                return res
-
-            n = [self.pos]
-            i = 0
-            while i < len(n):
-                p = n[i]
-                i += 1
-                v = level.get_tile(p)
-                if v == target:
-                    return p, backtrack(p)
-                elif v != Screen.BLANK and p != self.pos:
-                    continue
-                for dir in (0-1j, -1+0j, 0+1j, 1+0j):
-                    q = level.wrap_pos(p + dir)
-                    if q not in parent:
-                        parent[q] = (dir, p)
-                        n.append(q)
-
-        def step(self):
-            if not self.route_next():
-                self.reroute()
-                self.route_next()
-            super().step()
-
     # width = 160
     # height = 90
     # width, height = 30, 20
     # width, height = 15, 15
     # width, height = 160, 90
-
-    def food_loop():
-        return level.food_loop_base(Screen.FOOD, lambda p: p.on_eat_food())
 
     def faster_loop():
         return level.food_loop_base(Screen.FASTER, lambda p: p.faster())
@@ -436,14 +453,14 @@ def main(stdscr):
 
     # input = LockstepConsumers()
     snakes = [
-              AutoSnake(speed=4, pos=0+10j),
-              AutoSnake(speed=4, pos=10+12j),
-              # AutoSnake(speed=4, pos=15+12j),
-              # AutoSnake(speed=4, pos=0+16j),
+              AutoSnake(),
+              AutoSnake(),
+              AutoSnake(),
+              AutoSnake(),
              ]
     tasks = [
         # input.consume(CursesCharacters(stdscr)),
-        food_loop(),
+        level.food_loop(),
         # food_loop(),
         # food_loop(),
         # food_loop(),
